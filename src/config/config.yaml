@@ -1,0 +1,78 @@
+# Themis milter config
+
+# unix:/var/run/pythonfilter  # a named pipe
+# local:/var/run/pythonfilter # a named pipe
+# inet:8800 # listen on ANY interface
+# inet:7871@publichost # listen on a specific interface
+# inet6:8020
+# inet6:8020@[2001:db8:1234::1] # listen on specific IP
+milter_socket : inet:8440
+redis_server : localhost
+redis_password: 
+queue_maxsize : 4
+---
+global_namespace: AI
+# Hours
+global_ttl: 86400
+policiesByServerPoolFeature: true
+featuresByServerPool : false
+messagesBySecFeature: true
+messagesBySecStoreDays: 1
+feederFeaturesEnabled: false
+
+learnFeature : false
+learnPredictSafeValue : 30.0
+learnOnlyOnce : true
+learnEscalationValue : 0.2
+# minute : day
+learnTimeFrameValue : [['1', '1']]
+learnBlockMinutes : 2
+
+# Check for how many blocks a given object has
+rateReputationFeature : false
+# Increase or decrease rules of blocking if the block count is greater than this value
+rateReputationBlockHitValue : 5
+# Decrease the predicted value
+rateReputationDecreaseValue : 0.20
+# Increase the blocking time of a given object
+rateReputationIncreaseMinutes : 0
+
+# Check how many connection from diferrent ips are being made
+ipReputationFeature : false
+ipReputationHitValue : 4
+ipReputationDecreaseValue : 0.20
+ipReputationIncreaseMinutes : 0
+subjectReputationFeature : false
+subjectReputationHitValue : 10
+subjectReputationDecreaseValue : 0.10
+subjectReputationIncreaseMinutes : 0
+# [ [Minutes, requests], [...], ...]
+global_conditions : [ [720, 500] ]
+global_custom_block : 0
+---
+# Logging config
+logger:
+  version: 1
+  disable_existing_loggers: false
+  formatters:
+    simple:
+      format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  handlers:
+    console:
+      class: logging.StreamHandler
+      formatter: simple
+      stream: ext://sys.stdout
+    prod_file_handler:
+      class: logging.handlers.RotatingFileHandler
+      formatter: simple
+      filename: themis.log
+      maxBytes: 10485760 # 10MB
+      backupCount: 5
+      encoding: utf8
+  loggers:
+    __main__:
+      level: DEBUG
+      handlers: [console]
+  root:
+    level: DEBUG
+    handlers: [prod_file_handler]
