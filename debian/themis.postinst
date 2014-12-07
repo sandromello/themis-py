@@ -1,0 +1,39 @@
+#!/bin/sh
+# postinst script for themis
+
+set -e
+
+create_themis_user() {
+    if ! getent passwd themis > /dev/null; then
+        adduser --quiet --group --system --no-create-home --shell /usr/sbin/nologin themis
+        usermod -g themis themis
+    fi
+    if ! getent group themis > /dev/null; then
+        groupadd --system themis
+        usermod -g themis themis
+    fi
+}
+
+fix_perms() {
+    chown plesky:plesky /etc/locaweb/plesky/.plesky.key
+    chmod 600 /etc/locaweb/plesky/.plesky.key
+    chown plesky:plesky /usr/sbin/pskgen
+}
+
+case "$1" in
+    configure)
+        create_themis_user
+    ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

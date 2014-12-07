@@ -1,0 +1,29 @@
+Source: themis
+Section: contrib/mail
+Priority: optional
+Maintainer: Sandro Mello <sandromll@gmail.com>
+Build-Depends: debhelper (>= 8)
+Standards-Version: 3.9.1
+Homepage: https://github.com/sandromello/themis
+X-Python-Version: >= 2.7
+
+Package: themis-core
+Architecture: any
+Depends: ${python:Depends}, ${misc:Depends}, python-netaddr, python-requests (>= 0.8), python-redis (>= 2.4), python-numpy (>= 1.6)
+Description: Themis Core tools
+ Themis Core Tools is responsible for providing helper functions for themis and themis-web
+
+Package: themis-web
+Architecture: any
+Depends: ${python:Depends}, ${misc:Depends}, adduser, python-netaddr, python-requests (>= 0.8), python-redis (>= 2.4), redis-server (>= 2.8)
+Description: Themis Web
+ Themis Web is responsible for providing an API and web access to interact with all data in redis
+
+Package: themis
+Architecture: any
+Depends: ${python:Depends}, ${misc:Depends}, adduser, python-netaddr, python-requests (>= 0.8), python-redis (>= 2.4), python-milter (>= 0.9), python-yaml, python-numpy
+Description: Themis
+ Themis is a policy daemon to predict and control the rate of sending e-mail in Postfix.
+ Is designed for large scale mail hosting environments, build on top of the python-milter API.
+ The features was built not only for rate limiting but also to provide useful information about 
+ your mail environment, having also an easy and flexible configuration policies options.
