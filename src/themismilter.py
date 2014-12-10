@@ -487,7 +487,7 @@ if __name__ == '__main__':
   config_file = os.getenv('THEMIS_CFG')
   if not config_file:
     # TODO: Change this path to package
-    config_file = 'themis/config.yaml'
+    config_file = '/etc/themis/config.yaml'
   
   try:
     with open(config_file) as f:
