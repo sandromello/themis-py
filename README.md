@@ -16,4 +16,6 @@ http://packages.debian.org/search?keywords=python-redis
 # Build Ubuntu 14.04
 pip install stdeb
 Change setup.py target and then:
-python setup.py --command-packages=stdeb.command bdist_deb
+python setup.py --command-packages=stdeb.command debianize
+rm -rf debian/source
+debuild -us -uc -I
