@@ -12,3 +12,8 @@ Building documentation...
 # Utils
 http://milter-manager.sourceforge.net/reference/introduction.html
 http://packages.debian.org/search?keywords=python-redis
+
+# Build Ubuntu 14.04
+pip install stdeb
+Change setup.py target and then:
+python setup.py --command-packages=stdeb.command bdist_deb

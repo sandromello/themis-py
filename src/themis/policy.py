@@ -111,10 +111,22 @@ class Policy(Groups):
       raise ValueError('Strict check error, inconsistent metadata key. ERROR: %s' % e)
     # If get here it is safe to edit
     self.redis.hset(target_namespace, key, value, feat_mapping=True)
-    
-  def del_metadata(self, namespace, target):
-    target_namespace = ':'.join((namespace, target))
-    self.redis.delete(target_namespace)
+
+  def search_keys(self, target_lookup):
+    return self.scan(target_lookup) or []
+
+  def lookup_delete(self, target_lookup, debug=False):
+    if re.match(r'^policy.*|^list.*|^group.*|^config.*|^pool.*', target_lookup):
+      raise ValueError('Cannot delete keys with the starting names: list, group, config and pool.')
+    scan_result = self.scan(target_lookup)
+    if not scan_result:
+      raise ValueError('Could not find any keys to delete')
+    total = len(scan_result)
+    for key in scan_result:
+      if debug:
+        print 'Deleting key:', key
+      self.redis.delete(key)
+    return 'SUCCESS - Deleted %s key(s)' % total
 
   def add_default_metadata(self, namespace, target, config_file):
     target_namespace = ':'.join((namespace, target))

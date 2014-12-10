@@ -65,14 +65,15 @@ logger:
     prod_file_handler:
       class: logging.handlers.RotatingFileHandler
       formatter: simple
-      filename: themis.log
-      maxBytes: 10485760 # 10MB
+      filename: /var/log/themis/themisd.log
+      maxBytes: 200000000 # 200MB
       backupCount: 5
       encoding: utf8
-  loggers:
-    __main__:
-      level: DEBUG
-      handlers: [console]
+  # Console Logging
+  #loggers:
+  #  __main__:
+  #    level: INFO
+  #    handlers: [console]
   root:
-    level: DEBUG
+    level: INFO
     handlers: [prod_file_handler]

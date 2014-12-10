@@ -4,25 +4,28 @@
 set -e
 
 create_themis_user() {
-    if ! getent passwd themis > /dev/null; then
-        adduser --quiet --group --system --no-create-home --shell /usr/sbin/nologin themis
-        usermod -g themis themis
+    if ! getent passwd themisd > /dev/null; then
+        adduser --quiet --group --system --no-create-home --shell /usr/sbin/nologin themisd
+        usermod -g themisd themisd
     fi
-    if ! getent group themis > /dev/null; then
-        groupadd --system themis
-        usermod -g themis themis
+    if ! getent group themisd > /dev/null; then
+        groupadd --system themisd
+        usermod -g themisd themisd
     fi
 }
 
 fix_perms() {
-    chown plesky:plesky /etc/locaweb/plesky/.plesky.key
-    chmod 600 /etc/locaweb/plesky/.plesky.key
-    chown plesky:plesky /usr/sbin/pskgen
+    chown themisd: /etc/themis/config.yaml
+    chmod 600 /etc/themis/config.yaml
+    chown themisd: /usr/sbin/themismilter.py
+    chmod 755 /usr/sbin/themismilter.py
+    chown themisd: /var/log/themis
 }
 
 case "$1" in
     configure)
         create_themis_user
+        fix_perms
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

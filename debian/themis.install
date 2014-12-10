@@ -1,7 +1,0 @@
-themismilter.py opt/themis
-
-# Plugins
-src/plugins opt/themis/plugins
-
-# Configs
-src/config/config.yaml etc/themis

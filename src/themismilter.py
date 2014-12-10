@@ -477,7 +477,10 @@ class ThemisMilter(Milter.Base):
 
 def background():
   while True:
-    if not logq.get(): break
+    try:
+      if not logq.get(): break
+    except KeyboardInterrupt:
+      pass
 
 if __name__ == '__main__':
   # TODO: Try catch errors. This will not start at boot
@@ -525,9 +528,9 @@ if __name__ == '__main__':
   Milter.factory = ThemisMilter
   # tell Sendmail which features we use
   Milter.set_flags(Milter.ADDHDRS)
-  ThemisMilter.LOGGER.info("Starting milter...")
+  ThemisMilter.LOGGER.info("Starting ThemisMilter...")
   sys.stdout.flush()
   Milter.runmilter('themis', socketname, timeout)
   logq.put(None)
   bt.join()
-  ThemisMilter.LOGGER.info("Milter shutdown")
+  ThemisMilter.LOGGER.info("ThemisMilter shutdown")
