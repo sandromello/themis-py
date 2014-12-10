@@ -62,9 +62,9 @@ rc_syntax
 service_start() {
     log_daemon_msg "Starting $DESC" "$DAEMON. "
     touch $DAEMON_PIDFILE
-    chown themis:themis $DAEMON_PIDFILE
+    chown themisd:themisd $DAEMON_PIDFILE
     if [ -f $DAEMON_BIN ]; then
-        if start-stop-daemon --background --start --quiet --umask 007 --chuid themis:themis --exec $DAEMON_BIN --pidfile $DAEMON_PIDFILE --make-pidfile
+        if start-stop-daemon --background --start --quiet --umask 007 --chuid themisd:themisd --exec $DAEMON_BIN --pidfile $DAEMON_PIDFILE --make-pidfile
     then
         echo $rc_done
     else
