@@ -23,7 +23,7 @@ fix_perms() {
 }
 
 update_rcd(){
-    update.rc-d themisd defaults 2&> /dev/null
+    update-rc.d themisd defaults 2&> /dev/null
 }
 
 case "$1" in
