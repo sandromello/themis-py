@@ -22,10 +22,15 @@ fix_perms() {
     chown themisd: /var/log/themis
 }
 
+update_rcd(){
+    update.rc-d themisd defaults 2&> /dev/null
+}
+
 case "$1" in
     configure)
         create_themis_user
         fix_perms
+        update_rcd
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
