@@ -20,8 +20,8 @@ set -e
 # Source dbconfig-common functions
 case "$1" in
   remove)
-    update-rc.d themisd disable 2&> /dev/null
-    userdel -f themis 2&> /dev/nulld
+    update-rc.d themisd disable 2&>1 /dev/null
+    userdel -f themis 2&>1 /dev/null
   ;;
 
   purge|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
