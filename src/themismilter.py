@@ -79,7 +79,9 @@ class ThemisMilter(Milter.Base):
 
       if self.gconf.messagesBySecFeature:
         now = datetime.now()
-        now_in_seconds = now.hour * 60 * (self.gconf.messagesBySecStoreDays * 60) + now.second
+        storedays = self.gconf.messagesBySecStoreDays
+        now_in_seconds = now.hour * 60 * (storedays * 60)  + now.minute * (storedays * 60) + now.second
+
         self.redis.hincrby('requestsbysec:global', 'second:%s' % now_in_seconds)
       
       self.policies = self.policy.get_all_data_policies(mta_hostname)
@@ -217,7 +219,8 @@ class ThemisMilter(Milter.Base):
         if pdata.requestsmon:
           # Monitoring requests by sec of a policy
           now = datetime.now()
-          now_in_seconds = now.hour * 60 * (self.gconf.messagesBySecStoreDays * 60) + now.second
+          storedays = self.gconf.messagesBySecStoreDays
+          now_in_seconds = now.hour * 60 * (storedays * 60)  + now.minute * (storedays * 60) + now.second
           self.redis.hincrby('requestsbysec:%s' % pdata.policy_name, 'second:%s' % now_in_seconds)
 
         if '+' in pdata.jailby:
