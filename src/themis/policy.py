@@ -1,7 +1,8 @@
 from themis.group import Groups
 import re, yaml
 from themis.utils import is_valid_redis_key, BaseData, Features, ThemisMetaData
-from themis.callbacks import POLICY_CUSTOM_CALLBACK, FEATURES_CUSTOM_CALLBACK, METADATA_CUSTOM_CALLBACK
+from themis.static import POLICY_CUSTOM_CALLBACK, FEATURES_CUSTOM_CALLBACK, \
+METADATA_CUSTOM_CALLBACK, DEFAULT_FEATURES_VALUES, RESERVERD_KEYWORDS
 from copy import deepcopy
 
 class PolicyError(Exception): pass
@@ -9,10 +10,10 @@ class PolicyError(Exception): pass
 class Policy(Groups):
   POLICY_TYPES = ['bypass', 'regular', 'bypass+']
   JAILBY_VALUES = [ 'SASLUsername', 'SenderIP', 'Sender', 'Sender+', 'SenderDomain', 'SenderDomain+' ]
-  JAILACTION_VALUES = ['block', 'quarantine', 'monitor']
+  JAILACTION_VALUES = ['block', 'hold', 'monitor']
   # TODO: Add params policy_name and policy_namespace
   POLICY_PARAMS = ['Source', 'Destination', 'Enable', 'Type', 'Priority', 'JailBy', 'JailSpec', 'JailAction', 'ReplyData', 'OnlyHeaders', 
-  'CountRCPT', 'StopHere', 'RequestsMon', 'SubjectProbation', 'CountSentProbation', 'IpProbation', 'BlockProbation', 'ActionHeaders']
+  'CountRCPT', 'StopHere', 'RequestsMon', 'SubjectProbation', 'CountSentProbation', 'IpProbation', 'BlockProbation', 'ActionHeaders', 'SPF']
 
   def __init__(self, redis):
     super(Policy, self).__init__(redis)
@@ -77,8 +78,14 @@ class Policy(Groups):
         sleep(sleep_time)
 
   def config_features(self, namespace, config_file):
-    with open(config_file) as f:
-      _, global_config, _ = yaml.load_all(f)
+    if namespace in RESERVERD_KEYWORDS:
+      raise ValueError('Reserved word found: %s. Use another name' % ', '.join(RESERVERD_KEYWORDS))
+
+    if not config_file:
+      global_config = DEFAULT_FEATURES_VALUES
+    else:
+      with open(config_file) as f:
+        _, global_config, _ = yaml.load_all(f)
     feats = Features(**global_config)
     # sanity check for key items in config file
     feats.strict_check()
@@ -96,21 +103,27 @@ class Policy(Groups):
     self.redis.delete('config:themis:features:%s' % namespace)
 
   def get_features(self, namespace):
+    if namespace == 'list':
+      callback = {}
+      [callback.update({key : str(value)}) for key, value in FEATURES_CUSTOM_CALLBACK.items()]
+      return callback
     return self.redis.hgetall('config:themis:features:%s' % namespace)
 
-  def get_metadata(self, namespace, target):
-    target_namespace = ':'.join((namespace, target))
-    return self.redis.hgetall(target_namespace)
+  def get_metadata(self, target):
+    if target == 'list':
+      callback = {}
+      [callback.update({key : str(value)}) for key, value in METADATA_CUSTOM_CALLBACK.items()]
+      return callback
+    return self.redis.hgetall(target)
 
-  def edit_metadata(self, namespace, target, key, value):
-    target_namespace = ':'.join((namespace, target))
+  def edit_metadata(self, target, key, value):
     try:
-      tmetadata = ThemisMetaData(**self.redis.hgetall(target_namespace))
+      tmetadata = ThemisMetaData(**self.redis.hgetall(target))
       tmetadata.strict_check()
     except Exception, e:
       raise ValueError('Strict check error, inconsistent metadata key. ERROR: %s' % e)
     # If get here it is safe to edit
-    self.redis.hset(target_namespace, key, value, feat_mapping=True)
+    self.redis.hset(target, key, value, feat_mapping=True)
 
   def search_keys(self, target_lookup):
     return self.scan(target_lookup) or []
@@ -128,13 +141,18 @@ class Policy(Groups):
       self.redis.delete(key)
     return 'SUCCESS - Deleted %s key(s)' % total
 
-  def add_default_metadata(self, namespace, target, config_file):
-    target_namespace = ':'.join((namespace, target))
+  def add_default_metadata(self, target, config_file):
+    if target in RESERVERD_KEYWORDS:
+      raise ValueError('Reserved word found: %s. Use another name' % ', '.join(RESERVERD_KEYWORDS))
+
     tmetadata = ThemisMetaData(**ThemisMetaData.METADATA_DEFAULT_VALUES)
-    with open(config_file) as f:
-      _, global_config, _ = yaml.load_all(f)
+    if not config_file:
+      global_config = DEFAULT_FEATURES_VALUES
+    else:
+      with open(config_file) as f:
+        _, global_config, _ = yaml.load_all(f)
     tmetadata.update_features(**global_config)
-    self.redis.hmset(target_namespace, tmetadata.as_dict, dict(FEATURES_CUSTOM_CALLBACK.items() + METADATA_CUSTOM_CALLBACK.items()))
+    self.redis.hmset(target, tmetadata.as_dict, dict(FEATURES_CUSTOM_CALLBACK.items() + METADATA_CUSTOM_CALLBACK.items()))
 
   def add_actionheaders(self, policy_name, sourcehdr, regexp, actionheaders):
     """
@@ -181,6 +199,8 @@ class Policy(Groups):
       
   def addpool(self, pool_name, servers):
     is_valid_redis_key(pool_name)
+    if pool_name in RESERVERD_KEYWORDS:
+      raise ValueError('Reserved word found: %s. Use another name' % ', '.join(RESERVERD_KEYWORDS))
     try:
       self.getpool(pool_name)
       raise ValueError('Pool "%s" already exists' % pool_name)
@@ -345,8 +365,8 @@ class PolicyData(BaseData):
 
   def do_init(self):
     is_valid_redis_key(self.policy_name)
-    if self.policy_name == 'global':
-      raise ValueError('Reserved word: "global". Use another policy name')
+    if self.policy_name in RESERVERD_KEYWORDS:
+      raise ValueError('Reserved word found: %s. Use another name' % ', '.join(RESERVERD_KEYWORDS))
     self.policy_namespace = ':'.join(('policy', self.policy_name))
     self.pool_policy = False
     if ':' in self.policy_name:
@@ -407,7 +427,7 @@ class PolicyData(BaseData):
           raise ValueError('Could not find pattern: %s' % value)
         if not 'any' == value.group():
           grp.getgroup(value.group())
-      elif key in ['countrcpt', 'stophere', 'requestsmon', 'enable']:
+      elif key in ['countrcpt', 'stophere', 'requestsmon', 'enable', 'spf']:
         if value not in ['TRUE', 'FALSE', True, False]:
           raise ValueError('Enable, StopHere, RequestsMon and CountRCPT only accepts TRUE or FALSE')
       elif key == 'type':
