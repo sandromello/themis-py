@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from numpy import polyfit
 from math import ceil
-from themis.callbacks import FEATURES_CUSTOM_CALLBACK, METADATA_CUSTOM_CALLBACK
+from themis.static import FEATURES_CUSTOM_CALLBACK, METADATA_CUSTOM_CALLBACK
 import time
 
 class AI(object):
