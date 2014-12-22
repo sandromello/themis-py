@@ -45,7 +45,15 @@ class ThemisMilter(Milter.Base):
       with open(config_file) as f:
         main_config, global_config, logger_config = yaml.load_all(f)
 
-      ThemisMilter.REDIS = MarshalRedis(main_config['redis_server'])
+      ThemisMilter.REDIS = MarshalRedis(main_config['redis_server'], password=main_config['redis_password'])
+
+      redis_version = ThemisMilter.REDIS.info().get('redis_version')
+      if not redis_version:
+        raise RuntimeError('Could not find redis version')
+      redis_version = float('.'.join(redis_version.split('.')[:2]))
+      if redis_version < 2.8:
+        raise RuntimeError('Old redis version, should be at least 2.8+')
+
       global_config = ThemisMilter.REDIS.hgetall('config:themis:features:global', FEATURES_CUSTOM_CALLBACK) or global_config
       ThemisMilter.FEATS = Features(**global_config)
 
@@ -65,9 +73,8 @@ class ThemisMilter(Milter.Base):
     self.from_ipaddress = hostaddr[0]
     return Milter.CONTINUE
 
-  @Milter.nocallback
   def hello(self, heloname):
-    self.log.debug('HELO - heloname: %s' % heloname)
+    self.heloname = heloname
     return Milter.CONTINUE
 
   def envfrom(self, mailfrom, *str):
@@ -174,6 +181,24 @@ class ThemisMilter(Milter.Base):
 
       for pdata in self.policies:
         self.namespace = self.gconf.global_namespace
+
+        if pdata.spf:
+          try:
+            spfresult, spfcode, spftext = spf.check(i=self.from_ipaddress, s=self.mailfrom, h=self.heloname)
+            self.addheader('Received-SPF', spfresult)
+            process_action = False
+            if self.spfStrictRejectFeature:
+              if spfresult in ['softfail', 'fail', 'neutral', '', 'none']:
+                process_action = True
+            else:
+              if spfresult == 'fail':
+                process_action = True
+            self.log.info(eom_log_header + 'SPFCHECK - Result: %s, Code: %s, Explanation: %s' % (spfresult, spfcode, spftext))
+
+            if process_action:
+              return self.milter_action(pdata, log_header=eom_log_header)
+          except Exception, e:
+            self.log.exception(e)
 
         # Custom Headers are included if a header is found and the value has been matched with a regular expression
         if pdata.actionheaders:
@@ -330,6 +355,7 @@ class ThemisMilter(Milter.Base):
 
           # HERE WE START GLOBAL RATELIMITING
           conditions = pdata.jailspec
+          # This state is disabled
           if pdata.jailspec == [('0', '0')]:
             conditions = map(tuple, self.gconf.global_conditions)
           self.log.debug(eom_log_header + 'Block Conditions: %s' % conditions)
@@ -446,8 +472,6 @@ class ThemisMilter(Milter.Base):
     if pdata.jailaction == 'block':
       self.setreply('550', '5.7.1', pdata.replydata % wait)
       return Milter.REJECT  
-    elif pdata.jailaction == 'quarantine':
-      self.addheader(pdata.jailheader, 'YES')
     elif pdata.jailaction == 'hold':
       self.quarantine('Themis policy milter')
     elif pdata.jailaction == 'monitor':
@@ -496,7 +520,15 @@ if __name__ == '__main__':
     with open(config_file) as f:
       main_config, global_config, logger_config = yaml.load_all(f)
 
-    ThemisMilter.REDIS = MarshalRedis(main_config['redis_server'])
+    ThemisMilter.REDIS = MarshalRedis(main_config['redis_server'], password=main_config['redis_password'])
+    
+    redis_version = ThemisMilter.REDIS.info().get('redis_version')
+    if not redis_version:
+      raise RuntimeError('Could not find redis version')
+    redis_version = float('.'.join(redis_version.split('.')[:2]))
+    if redis_version < 2.8:
+      raise RuntimeError('Old redis version, should be at least 2.8+')
+
     global_config = ThemisMilter.REDIS.hgetall('config:themis:features:global') or global_config
     ThemisMilter.FEATS = Features(**global_config)
     # sanity check for key items in config file
@@ -531,9 +563,9 @@ if __name__ == '__main__':
   Milter.factory = ThemisMilter
   # tell Sendmail which features we use
   Milter.set_flags(Milter.ADDHDRS)
-  ThemisMilter.LOGGER.info("Starting ThemisMilter...")
+  ThemisMilter.LOGGER.info('Starting ThemisMilter...')
   sys.stdout.flush()
   Milter.runmilter('themis', socketname, timeout)
   logq.put(None)
   bt.join()
-  ThemisMilter.LOGGER.info("ThemisMilter shutdown")
+  ThemisMilter.LOGGER.info('ThemisMilter shutdown')
