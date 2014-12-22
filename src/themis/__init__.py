@@ -1,3 +1,4 @@
+
 from themis.marshalredis import MarshalRedis
 from themis.AI import AI
 from themis.group import Groups
@@ -11,7 +12,7 @@ from themis.utils import (
   ThemisMetaData
 )
 
-from themis.callbacks import (
+from themis.static import (
   FEATURES_CUSTOM_CALLBACK,
   METADATA_CUSTOM_CALLBACK,
   POLICY_CUSTOM_CALLBACK,
