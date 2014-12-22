@@ -28,6 +28,9 @@ learnEscalationValue : 0.2
 learnTimeFrameValue : [['1', '1']]
 learnBlockMinutes : 2
 
+# it will start processing milter action if the spf result is: None, null, softfail, fail or neutral
+spfStrictRejectFeature : false
+
 # Check for how many blocks a given object has
 rateReputationFeature : false
 # Increase or decrease rules of blocking if the block count is greater than this value
