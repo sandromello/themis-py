@@ -42,7 +42,7 @@ Track the total of connections that are handled and for each policy too.
 
 ## Quick Start - Ubuntu 14.04 - ppa not ready yet
 
-Supossing that you have an environment with Zimbra, follow the 2nd step to put themis on route
+Supposing that you have an environment with Zimbra, follow the 2nd step to put themis on route
 
 ```
 sudo add-apt-repository -y ppa:sandro-mello/themis
