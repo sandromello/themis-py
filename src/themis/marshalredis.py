@@ -1,4 +1,4 @@
-from themis.callbacks import METADATA_CUSTOM_CALLBACK, POLICY_CUSTOM_CALLBACK, FEATURES_CUSTOM_CALLBACK
+from themis.static import METADATA_CUSTOM_CALLBACK, POLICY_CUSTOM_CALLBACK, FEATURES_CUSTOM_CALLBACK
 from redis import StrictRedis
 from redis.client import BasePipeline
 from itertools import izip
