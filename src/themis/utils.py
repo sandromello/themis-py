@@ -1,7 +1,7 @@
 import hashlib, os, re, time
 from netaddr import IPNetwork
 from datetime import datetime, timedelta
-from themis.callbacks import FEATURES_CUSTOM_CALLBACK, METADATA_CUSTOM_CALLBACK
+from themis.static import FEATURES_CUSTOM_CALLBACK, METADATA_CUSTOM_CALLBACK
 from copy import deepcopy
 
 class BaseData(object):
@@ -81,7 +81,6 @@ class Features(BaseData):
     self.tmetadata.__dict__.update(dict.fromkeys(['ip_reputation_lastupdate', 'subject_lastupdate', 'sentmessages_lastupdate'], now_in_timestamp))
     self.tmetadata.last_subject = milter_subject
     
-    # TODO: Fix subjectReputationFeature, should not be local_milter_from_object, always match by from
     # update features
     with redis.pipeline() as pipe:
       # Ip Reputation Feature
