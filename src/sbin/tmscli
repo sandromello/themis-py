@@ -70,13 +70,104 @@ tmscli -a --remote localhost
 """
 
 # TODO: get operations should accept only one key too, E.G.: tmsprov -g --metadata metadata:lab01.domain.tld manual_block
+# TODO: List of metadata keys/values and features keys/values
 # TODO: lock destination any with bypass
-# TODO: Implement config/file/server options
-# TODO: Test with several options
-# TODO: Replace must treat bypass policies, remove all undesired fields
-# TODO: Search filters, look enabled policies or only bypass policies
 
-# TODO: MOVE TO PACKAGE or Policy class: from themis import REQUIRED_POLICY_PARAMS, DEFAULT_POLICY_PARAMS
+COMMON_HELP = """Cli interface for configuring themis
+tmscli {args} {params} {param-name} [attr value [...]] [opts]
+  
+  -h/--help [policy|group|pool|features|metadata]          display usage 
+  -a                                                       add operations
+  -d                                                       delete operations
+  -m                                                       modify operations
+  -g                                                       get operations
+  
+  -f                  force execution, do not prompt
+  {-d|-f} --flushdb   flush the redis default dabatase
+  {-a} --resync       tries to resync the main config without restarting themismilter
+
+  --json              json format without indentation - use for get operations
+  --debug             debug useful information - use for all operations
+
+  {-a} --remote {redis_server}            configure a remote redis server
+  {-g} --search {wildcard_search}         search using wildcard parameters
+  {-d} --del-lookup {wildcard_search}     del using wildcard parameters
+
+  --policy {policy_name} {Source} {group_name|any} {Destination} {group_name|any} [attr01 value1 ...]      change policy params
+  --group {group_name} {object01 object02 ...}                                                             change group members
+  --pool {pool_name} {server01 server02 ...}                                                               configure a pool with servers
+  --actionheaders {policy_name} {match_header} {regexp} {new_header} {new_value}                           add a new header if the regexp is validated in policy
+  --features {global|feature_name} [feature] [value]                                                       configure custom or global features
+  --metadata {metadata_namespace} {metadata_key} {metadata_value}                                          configure metadata
+"""
+
+POLICY_HELP = """Group command help
+tmscli {args} --policy {policy_name} [attribute value [...]]
+  
+  --help policy                                                                                               display this help
+  -a --policy {policy_name} {Source} {group_name|any} {Destination} {group_name|any} [attr01 value1 ...]      add a new group with defined members
+  -d --policy {policy_name}                                                                                   delete an entire group by name
+  -m --policy {policy_name} [attr01 value01 [attr02 value02] ...]                                             change/include or delete a group member
+  -g --policy {policy_name|all}                                                                               get all groups or a particular one
+
+  Permited policy attributes: 
+  ---------------------------
+  %s
+""" % '\n  '.join(Policy.POLICY_PARAMS)
+
+GROUP_HELP = """Policy command help
+tmscli {args} --group {group_name} [group_members] [opts]
+  
+  --help group                                                    display this help
+  -a --group {group_name} {group_members}                         add a new group with defined members
+  -d --group {group_name}                                         delete an entire group by name
+  -m --group {group_name} {group_members} [--remove]              change/include or delete a group member
+  -g --group {group_name|all} [group_name02 [group_name03] ...]   get all groups or a particular one
+
+  Group member syntax: @domain.tld account@domain.tld a.b.c.d/cidr
+"""
+
+POOL_HELP = """Pool cli help
+tmscli {args} --pool {pool_name} [server_members] [opts]
+  
+  --help pool                                                     display this help
+  -a --pool {pool_name} {server_members}                          add a new pool with defined server members
+  -d --pool {pool_name}                                           delete an entire pool by name
+  -m --pool {pool_name} {group_members} [--remove]                change/include or delete a pool member
+  -g --pool {pool_name|all} [pool_name02 [pool_name03] ...]       get all pools or a particular one
+"""
+
+ACTIONHEADERS_HELP = """Actionheaders cli help
+tmscli {args} --actionheaders {policy_name} [match_header regexp new_header new_header_value] [opts]
+  
+  --help actionheaders                                                                                                            display this help
+  -a --actionheaders {policy_name} [match_header regexp new_header new_header_value [new_header02 new_header_value02] ...]        add a new matching header
+  -d --actionheaders {policy_name} [--clear]                                                                                      delete a specific header or clear all headers
+  -m --actionheaders {policy_name} [match_header regexp new_header new_header_value [new_header02 new_header_value02] ...]        change a header value
+
+  --clear                                                                                                                         clear all action headers on policy
+"""
+FEATURES_HELP = """Features cli help
+tmscli {args} --features {feature_namespace} [feature_name] [feature_value]
+  
+  --help features                                                                        display this help
+  -a --features {feature_namespace|global}                                               add a new namespace configured with default features
+  -d --features {feature_namespace|global}                                               delete an entire feature_namespace
+  -m --features {feature_namespace|global} {feature_name} {feature_value}                change a feature value from a feature namespace
+  -g --features {feature_namespace|global}                                               get all features of a feature namespace
+  -g --features list                                                                     list all features keys and types 
+"""
+
+METADATA_HELP = """Metadata cli help
+tmscli {args} --metadata {object_name} [metadata_key] [metadata_value]
+  
+  --help metadata                                                           display this help
+  -a --metadata {object_name}                                               add a new metadata object
+  -m --metadata {object_name} {metadata_key} {metadata_value}               change a metadata key from an object
+  -g --metadata {object_name|all} [object_name02 [object_name03] ...]       get an object or several ones
+  -g --metadata list                                                        list all metadata keys and types 
+"""
+
 REQUIRED_POLICY_PARAMS = ['Source', 'Destination']
 
 class Prov(Policy):
@@ -183,10 +274,10 @@ class Prov(Policy):
       return 'Could not find any features. Namespace: %s' % namespace
     return self.json
 
-  def get_metadata(self, namespace, target):
-    self.data = super(Prov, self).get_metadata(namespace, target)
+  def get_metadata(self, target):
+    self.data = super(Prov, self).get_metadata(target)
     if not self.data:
-      return 'Could not find any metadata account. Namespace: %s' % ':'.join((namespace, target))
+      return 'Could not find any metadata account. Namespace: %s' % target
     return self.json
 
   def search_keys(self, target_object_name):
@@ -205,29 +296,21 @@ class Prov(Policy):
     else:
       return json.dumps(self.data)
 
-def usage(error=None):
-  print """Cli interface for configuring themis
-tmsprov {args} {params} {param-name} [attr value [...]] [opts]
-  
-  -h/--help        display usage 
-  -a               add operations
-  -d               delete operations
-  -m               modify operations
-  -g               get operations
-  --server         redis-server to connect to
-  --config         config file alternative. Default: /etc/themis/themis.cfg
-  --file           use file as input stream
-  --json           json format without indentation
-
-  --policy {policy_name} [attr1 value attr2 value ...]           change policy params
-  --group  {group_name} [value value ...]                        change group members
-  --headers {policy_name}
-
-  Examples: 
-    $ tmsprov -a --policy mypolicy Source default Destination default JailBy SASLUsername JailSpec 1d:1000
-    $ tmsprov -a --group mygroup '@domain.com account@ @mydomain.net 192.168.6.0/24'
-    $ tmsprov -g --group mygroup --json
-"""
+def usage(error=None, usage_type='common'):
+  if usage_type == 'common':
+    print COMMON_HELP
+  elif usage_type == 'policy':
+    print POLICY_HELP
+  elif usage_type == 'group':
+    print GROUP_HELP
+  elif usage_type == 'actionheaders':
+    print ACTIONHEADERS_HELP
+  elif usage_type == 'features':
+    print FEATURES_HELP
+  elif usage_type == 'metadata':
+    print METADATA_HELP
+  elif usage_type == 'pool':
+    print POOL_HELP
   if not error:
     sys.exit(0)
   print 'ERROR -', error
@@ -281,10 +364,11 @@ if __name__ == '__main__':
 
   try:
     opts, args = getopt.getopt(sys.argv[1:], 'a:d:m:f:g:h', ['help', 'file', 'resync', 'flushdb', 'policy', 'group', 'pool', 
-      'actionheaders', 'features', 'metadata', 'requests', 'remote', 'del-lookup', 'search'])
+      'actionheaders', 'features', 'metadata', 'remote', 'del-lookup', 'search'])
     if not opts:
       usage()
     action = None
+    callhelp = False
     for o, a in opts:
       #print o, a, args
       if o == '-a':
@@ -296,17 +380,22 @@ if __name__ == '__main__':
       elif o == '-d':
         action = 'delete'
       elif o == '-h' or o == '--help':
+        callhelp = True
+
+      if callhelp:
+        if args:
+          usage(usage_type=args[0])
         usage()
 
       # Add a redis remote server
       if a == '--remote' and action == 'add':
         remote_server = 'localhost'
         if args:
-          remote_server = args[0]
+          remote_server, redis_password = args
 
         config = dict(
           redis_server = remote_server,
-          redis_password = ''
+          redis_password = redis_password
         )
         with open(home_config, 'w') as f:
           f.write(yaml.dump(config))
@@ -345,7 +434,6 @@ if __name__ == '__main__':
 
       target_object_name = args[0]
       args.remove(target_object_name)
-      
 
       if a == '--policy':
         if action in ['add', 'modify']:
@@ -376,7 +464,7 @@ if __name__ == '__main__':
         elif action == 'delete':
           print prov.delete_policy(target_object_name)
         else:
-          usage
+          usage(usage_type='policy')
         sys.exit(0)
 
       elif a == '--group':
@@ -396,7 +484,7 @@ if __name__ == '__main__':
           args.append(target_object_name)
           print prov.delete_group(args)
         else:
-          usage()
+          usage(usage_type='group')
       elif a == '--pool':
         if action == 'add':
           args = args[0].split()
@@ -419,7 +507,7 @@ if __name__ == '__main__':
             args.append(target_object_name)
             response = prov.get_pool(args)
         else:
-          usage()
+          usage(usage_type='pool')
         print response
         sys.exit(0)
       elif a == '--actionheaders':
@@ -437,7 +525,7 @@ if __name__ == '__main__':
           else:
             prov.del_actionheaders(target_object_name, sourcehdr)
         else:
-          usage()
+          usage(usage_type='actionheaders')
         print response
       elif a == '--features':
         if action == 'get':
@@ -449,16 +537,19 @@ if __name__ == '__main__':
           prov.edit_features(target_object_name, feature, value)
         elif action == 'delete':
           prov.del_features(target_object_name)
+        else:
+          usage(usage_type='features')
         print response
       elif a == '--metadata':
-        namespace = args[0]
         if action == 'get':
-          response = prov.get_metadata(namespace, target_object_name)
+          response = prov.get_metadata(target_object_name)
         elif action == 'add':
-          prov.add_default_metadata(namespace, target_object_name, config_file)
+          prov.add_default_metadata(target_object_name, config_file)
         elif action == 'modify':
           metadata_key, metadata_value = args
-          prov.edit_metadata(namespace, target_object_name, metadata_key, metadata_value)
+          prov.edit_metadata(target_object_name, metadata_key, metadata_value)
+        else:
+          usage(usage_type='metadata')
         print response
       elif a == '--del-lookup':
         if action == 'delete':
@@ -467,8 +558,6 @@ if __name__ == '__main__':
       elif a == '--search':
         if action == 'get':
           print prov.search_keys(target_object_name)
-      else:
-        usage()
 
   except getopt.GetoptError, e:
     usage(e)
