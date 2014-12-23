@@ -5,70 +5,9 @@ from traceback import format_exc
 from os.path import expanduser
 from themis import *
 
-"""
-./tmsprov.py -c --init configure
-
-./tmsprov.py -a --policy mypolicy JailBy SASLUsername JailSpec 1:1000
-./tmsprov.py -a --policy mypolicy2 JailBy SASLUsername JailSpec 1:1000
-
--a --policy default JailBy Sender+ JailSpec 1:1000
-
-./tmsprov.py -d --policy mypolicy mypolicy2W
-./tmsprov.py -d --policy mypolicy
-
-./tmsprov.py -g --policy mypolicy mypolicy2
-./tmsprov.py -g --policy mypolicy
-./tmsprov.py -g --policy all
-
-./tmsprov.py -a --group default '@domina.com @inova.net 192.168.6.0/24 @cloudmark.com'
-./tmsprov.py -d --group default
-
-./tmsprov.py -m --group default '@cloud.com sandro@'
-./tmsprov.py -m --group default 'sandro@' --remove
-./tmsprov.py -g --group default
-./tmsprov.py -g --group all
-
-./tmsprov.py -a --pool inbound 'mtain-01.domain.tld mtain-02.domain.tld mtain-03.domain.tld'
-./tmsprov.py -a --pool outbound 'mtaout-01.domain.tld mtaout-02.domain.tld mtaout-03.domain.tld'
-./tmsprov.py -a --policy outbound:default Source any Destination any JailSpec 1:1000
-./tmsprov.py -a --policy inbound:default Source any Destination any JailSpec 1:1000
-
-./tmsprov.py -d --pool inbound
-./tmsprov.py -m --pool inbound 'mtain-04.domain.tld mtain-05.domain.tld'
-./tmsprov.py -m --pool inbound 'mtain-01.domain.tld mtain-02.domain.tld' --remove
-
-./tmsprov.py -g --pool all
-./tmsprov.py -g --pool inbound outboud
-
-./tmsprov.py -a --features global
-./tmsprov.py -a --features bypool:custom
-./tmsprov.py -m --features global global_conditions '[[5,10], [25,100]]'
-./tmsprov.py -m --features global learnFeature TRUE
-./tmsprov.py -m --features global global_ttl 10000
-
-./tmsprov.py -g --features global
-./tmsprov.py -g --features bypool:custom
-
-./tmsprov.py -d --pool global
-./tmsprov.py -d --pool bypool:custom
-
-./tmsprov.py -d --flushdb
-./tmsprov.py -f --flushdb
-
-./tmsprov.py -a --resync
-
-tmscli -g --search AI:metadata:*inova*
-tmscli -d --del-lookup AI:metadata:*inova*
-
-tmscli -a --remote localhost
-
-#python -m themis.tms -m --actionheaders default X-CMAE-Score '(9[6-8]|100).*' X-Spam-Flag YES X-New-Flag YES
-#python -m themis.tms -d --actionheaders --clear
-#python -m themis.tms -d --actionheaders default --clear
-#python -m themis.tms -a --actionheaders default X-CMAE-Score '(9[6-9]|100).*' X-Spam-Flag YES
-
-"""
-
+# TODO: List available options for policy
+# TODO: Create automatic pool on policy creation, should delete when a pool policy is deleted
+# TODO: Should not delete a pool if exists a policy associate with
 # TODO: get operations should accept only one key too, E.G.: tmsprov -g --metadata metadata:lab01.domain.tld manual_block
 # TODO: List of metadata keys/values and features keys/values
 # TODO: lock destination any with bypass
@@ -110,10 +49,18 @@ tmscli {args} --policy {policy_name} [attribute value [...]]
   -m --policy {policy_name} [attr01 value01 [attr02 value02] ...]                                             change/include or delete a group member
   -g --policy {policy_name|all}                                                                               get all groups or a particular one
 
-  Permited policy attributes: 
-  ---------------------------
+  Permited policy attributes
+  --------------------------
   %s
-""" % '\n  '.join(Policy.POLICY_PARAMS)
+
+  Attribute values
+  ----------------
+  Type: %s
+  JailBy: %s
+  JailAction: %s
+
+""" % ( '\n  '.join(Policy.POLICY_PARAMS), ', '.join(Policy.POLICY_TYPES), 
+  ', '.join(Policy.JAILBY_VALUES), ', '.join(Policy.JAILACTION_VALUES) )
 
 GROUP_HELP = """Policy command help
 tmscli {args} --group {group_name} [group_members] [opts]
@@ -236,6 +183,7 @@ class Prov(Policy):
     return 'SUCCESS'
 
   def delete_group(self, group_names):
+    # TODO: Check to see if a group belongs to a policy, if it does, must not delete the registry
     deleted = []
     for group_name in group_names:
       try:
@@ -391,11 +339,11 @@ if __name__ == '__main__':
       if a == '--remote' and action == 'add':
         remote_server = 'localhost'
         if args:
-          remote_server, redis_password = args
+          remote_server = args[0]
 
         config = dict(
           redis_server = remote_server,
-          redis_password = redis_password
+          redis_password = ''
         )
         with open(home_config, 'w') as f:
           f.write(yaml.dump(config))

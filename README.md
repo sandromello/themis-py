@@ -40,7 +40,10 @@ Track the total of connections that are handled and for each policy too.
 - Rate limiting counting by recipients
 - Bypass or block by rated object
 
-## Quick Start - Ubuntu 14.04 - ppa not ready yet
+<a name='quick-start-guide'/>
+## Quick Start Guide
+
+**Ubuntu 14.04**
 
 Supposing that you have an environment with Zimbra, follow the 2nd step to put themis on route
 
@@ -51,6 +54,8 @@ sudo apt-get install -y redis-server
 tmscli -a --policy default Source any Destination any
 tail -f /var/log/themis/themisd.log
 ```
+
+**Note:** ppa note ready yet
 
 **On Zimbra Server**
 
