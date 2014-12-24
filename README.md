@@ -2,6 +2,10 @@
 
 Themis is a flexible milter, build on top of [pymilter](http://pythonhosted.org/pymilter) that strictly control your postfix environment. The main goal of this project is not only having control the users, but also to provide useful information about your mail environment. 
 
+## Full Documentation
+
+See the [Wiki](https://github.com/sandromello/themis-py/wiki) for full documentation, examples, operational details and other information.
+
 ## What does it do?
 
 #### 1) Control all the flow of connections in policies
