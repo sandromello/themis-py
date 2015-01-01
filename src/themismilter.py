@@ -45,7 +45,10 @@ class ThemisMilter(Milter.Base):
       with open(config_file) as f:
         main_config, global_config, logger_config = yaml.load_all(f)
 
-      ThemisMilter.REDIS = MarshalRedis(main_config['redis_server'], password=main_config['redis_password'])
+      redis_server = os.getenv('THEMIS_REDIS') or main_config['redis_server']
+      redis_password = os.getenv('THEMIS_REDISPASSWD') or main_config['redis_password']
+
+      ThemisMilter.REDIS = MarshalRedis(redis_server, redis_password)
 
       redis_version = ThemisMilter.REDIS.info().get('redis_version')
       if not redis_version:
@@ -520,7 +523,11 @@ if __name__ == '__main__':
     with open(config_file) as f:
       main_config, global_config, logger_config = yaml.load_all(f)
 
-    ThemisMilter.REDIS = MarshalRedis(main_config['redis_server'], password=main_config['redis_password'])
+    redis_server = os.getenv('THEMIS_REDIS') or main_config['redis_server']
+    redis_password = os.getenv('THEMIS_REDISPASSWD') or main_config['redis_password']
+    queue_maxsize = os.getenv('THEMIS_QUEUEMAXSIZE') or main_config['queue_maxsize']
+
+    ThemisMilter.REDIS = MarshalRedis(redis_server, password=redis_password)
     
     redis_version = ThemisMilter.REDIS.info().get('redis_version')
     if not redis_version:
@@ -534,7 +541,7 @@ if __name__ == '__main__':
     # sanity check for key items in config file
     ThemisMilter.FEATS.strict_check()
 
-    logq = Queue(maxsize=main_config['queue_maxsize'])
+    logq = Queue(maxsize=queue_maxsize)
 
     logging.config.dictConfig(logger_config['logger'])
     ThemisMilter.LOGGER = logging.getLogger(__name__)
