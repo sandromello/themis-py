@@ -59,8 +59,6 @@ tmscli -a --policy default Source any Destination any
 tail -f /var/log/themis/themisd.log
 ```
 
-**Note:** ppa note ready yet
-
 **On Zimbra Server**
 
 ```
@@ -72,8 +70,17 @@ zmmtactl restart
 
 This will configure a new policy and monitor every sent and receive message on the Zimbra server.
 
+## Get Help
 
-## Build Ubuntu 14.04 - incomplete
+TODO
+
+## Author
+
+Themis was created by Sandro Mello (sandromll@gmail.com)
+
+## Install from source
+
+TODO
 
 ```
 pip install stdeb
