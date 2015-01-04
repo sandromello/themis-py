@@ -59,12 +59,19 @@ tmscli -a --policy default Source any Destination any
 tail -f /var/log/themis/themisd.log
 ```
 
+**OR Docker**
+
+```
+wget https://raw.githubusercontent.com/sandromello/themis-py/master/src/config/config.yaml && mv config.yaml /tmp
+docker run --net host -e "THEMIS_REDIS=<redis_host>" sandromello/themis themismilter.py
+```
+
 **On Zimbra Server**
 
 ```
 postconf -e milter_default_action=accept
-zmprov ms $(zmhostname) zimbraMtaSmtpdMilters 'inet:themis_server:8440'
-zmprov ms $(zmhostname) zimbraMtaNonSmtpdMilters 'inet:themis_server:8440'
+zmprov ms $(zmhostname) zimbraMtaSmtpdMilters 'inet:<themis_server>:8440'
+zmprov ms $(zmhostname) zimbraMtaNonSmtpdMilters 'inet:<themis_server>:8440'
 zmmtactl restart
 ```
 
