@@ -17,8 +17,6 @@ create_themis_user() {
 fix_perms() {
     chown themisd: /etc/themis/config.yaml
     chmod 600 /etc/themis/config.yaml
-    chown themisd: /usr/sbin/themismilter.py
-    chmod 755 /usr/sbin/themismilter.py
     chown themisd: /var/log/themis
 }
 

@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-from distutils.core import setup
+#from distutils.core import setup
+
+from setuptools import setup
 
 packages = { 
 'themis_core_package' : {
@@ -15,9 +17,7 @@ packages = {
         'netaddr', 'pyyaml', 'redis', 'numpy'
       ],
       'package_dir' : {'themis' : 'src/themis'},
-      'data_files' : [
-        ('sbin', ['src/sbin/tmscli'])
-      ]
+      'scripts' : [ 'src/sbin/tmscli' ],
   },
 'themis_package' : {
     'name' : 'themis',
@@ -32,10 +32,10 @@ packages = {
     'install_requires' : [
         'pymilter', 'pyspf'
      ],
+    'scripts' : ['src/themismilter.py'],
     'data_files' : [
         ('/etc/themis', ['src/config/config.yaml']),
         ('/etc/init.d', ['src/init.d/themisd']),
-        ('sbin', ['src/themismilter.py']),
         ('/var/log/themis', [])
       ]
   }
@@ -43,4 +43,4 @@ packages = {
 
 core = 'themis_core_package'
 tms = 'themis_package'
-setup(**packages[tms])
+setup(**packages[core])

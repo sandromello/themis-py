@@ -1,0 +1,11 @@
+[Unit]
+Description=Themis policy milter
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/themismilter.py
+User=themisd
+Group=themisd
+
+[Install]
+WantedBy=multi-user.target
