@@ -18,7 +18,7 @@ Vendor: Sandro Mello <sandromll@gmail.com>
 Url: https://github.com/sandromello/themis-py
 
 BuildRequires: systemd, systemd-units
-Requires: python2.7, systemd, themis-core, python-pyspf, python-pymilter >= 0.9 
+Requires: systemd, themis-core, python-pyspf, python-pymilter >= 0.9 
 
 %description
 Themis is a policy daemon to predict and control the rate of sending mails in Postfix. Is designed for large scale mail hosting environments, build on top of the python-milter API. The features was built not only for rate limiting but also to provide useful information about your mail environment.
