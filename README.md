@@ -84,19 +84,3 @@ TODO
 ## Author
 
 Themis was created by Sandro Mello (sandromll@gmail.com)
-
-## Install from source
-
-TODO
-
-```
-pip install stdeb
-```
-
-Change setup.py target and then:
-
-```
-python setup.py --command-packages=stdeb.command debianize
-rm -rf debian/source
-debuild -us -uc -I
-```
