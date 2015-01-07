@@ -1,5 +1,5 @@
 # CentOS - themis-core
-fpm --license APACHE-2.0 -a x86_64 -n themis-core -m 'Sandro Mello <sandromll@gmail.com>' -d PyYAML -d python-netaddr -d 'python-redis >= 2.8' -d 'numpy >= 1.6' --no-python-dependencies -s python -t rpm themis-core
+fpm --license Apache2.0 -a x86_64 -n themis-core -m 'Sandro Mello <sandromll@gmail.com>' -d PyYAML -d python-netaddr -d 'python-redis >= 2.8' -d 'numpy >= 1.6' --no-python-dependencies -s python -t rpm themis-core
 
 # CentOS - themis
 git clone https://github.com/sandromello/themis-py.git && cd themis-py
