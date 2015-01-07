@@ -1,4 +1,4 @@
-%define name themis-core
+%define name themis
 %define version 0.1
 %define unmangled_version 0.1
 %define unmangled_version 0.1
