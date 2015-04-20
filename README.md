@@ -52,19 +52,32 @@ Track the total of connections that are handled and for each policy too.
 Supposing that you have an environment with Zimbra, follow the 2nd step to put themis on route
 
 ```
+sudo add-apt-repository -y ppa:sandro-mello/themis-core
 sudo add-apt-repository -y ppa:sandro-mello/themis
+sudo add-apt-repository -y ppa:chris-lea/python-redis
+sudo add-apt-repository -y ppa:chris-lea/python-hiredis
+sudo add-apt-repository -y ppa:chris-lea/redis-server
+sudo apt-get update
+
 sudo apt-get install -y themis-core themis
 sudo apt-get install -y redis-server
 tmscli -a --policy default Source any Destination any
 tail -f /var/log/themis/themisd.log
 ```
 
+**CentOS 7**
+
+TODO
+
 **OR Docker**
 
 ```
 wget https://raw.githubusercontent.com/sandromello/themis-py/master/src/config/config.yaml && mv config.yaml /tmp
-docker run --net host -e "THEMIS_REDIS=<redis_host>" sandromello/themis themismilter.py
+# Change config.yaml to the redis server instance
+docker run --name themismilter -v /tmp:/etc/themis sandromello/themis themismilter.py
 ```
+
+[Docker image](https://registry.hub.docker.com/u/sandromello/themis)
 
 **On Zimbra Server**
 
@@ -77,9 +90,13 @@ zmmtactl restart
 
 This will configure a new policy and monitor every sent and receive message on the Zimbra server.
 
-## Get Help
+## Requirements
 
 TODO
+
+## Get Help
+
+Mail List: https://groups.google.com/d/forum/themis-project
 
 ## Author
 
