@@ -18,13 +18,15 @@ from multiprocessing import Process as Thread, Queue
 from themis.marshalredis import MarshalRedis
 
 import Milter, time, logging.config
-import re, sys, yaml, os
+import re, sys, yaml, os, spf
 
 # TODO: Count receive messages by header
 # TODO: Implement greylist functionality
 # TODO: Rest interface for configuring
 # TODO: Send UDP requests containing statistics
 # TODO: Test performance: Anex, list, alias, severeal rcpts
+# TODO: Log inverted destination -> OK
+# TODO: RCPT and SENDER objects from postfix could be UPPER cases, should match insensitive -> OK
 
 class ThemisMilter(Milter.Base):
   REDIS, LOGGER, FEATS = [None, None, None]
@@ -71,7 +73,7 @@ class ThemisMilter(Milter.Base):
     # (self, 'ip068.subnet71.example.com', AF_INET, ('215.183.71.68', 4720) )
     # (self, 'ip6.mxout.example.com', AF_INET6,
     #   ('3ffe:80e8:d8::1', 4720, 1, 0) )
-    self.log.debug('CONNECT - From %s at %s in ID %s' % (IPname, hostaddr[0], self.id))
+    self.log.debug('CONNECT - ID %s From %s at %s ' % (self.id, IPname, hostaddr[0]))
     #self.log("connect from %s at %s in ID: %s" % (IPname, hostaddr, self.milter.id) )
     self.from_ipaddress = hostaddr[0]
     return Milter.CONTINUE
@@ -82,10 +84,10 @@ class ThemisMilter(Milter.Base):
 
   def envfrom(self, mailfrom, *str):
     try:
-      mta_hostname = None
+      self.mta_hostname = None
       if self.gconf.policiesByServerPoolFeature:
-        mta_hostname = self.getsymval('{j}')
-        self.log.debug('CONNECT - policiesByServerPoolFeature enabled, mta_hostname: %s' % mta_hostname)
+        self.mta_hostname = self.getsymval('{j}')
+        self.log.debug('CONNECT - ID %s policiesByServerPoolFeature enabled, mta_hostname: %s' % (self.id, self.mta_hostname))
 
       if self.gconf.messagesBySecFeature:
         now = datetime.now()
@@ -94,14 +96,15 @@ class ThemisMilter(Milter.Base):
 
         self.redis.hincrby('requestsbysec:global', 'second:%s' % now_in_seconds)
       
-      self.policies = self.policy.get_all_data_policies(mta_hostname)
+      self.policies = self.policy.get_all_data_policies(self.mta_hostname, self.gconf.fallbackToNonPoolPolicies)
 
       self.milter_headers, self.recipients, self.subject = [dict(), list(), None]
       self.saslauth = self.getsymval('{auth_authen}') # authenticated user
       self.saslauth_domain = None
       if self.saslauth:
+        self.saslauth = self.saslauth.lower()
         if not '@' in self.saslauth:
-          self.log.info('ENVFROM - Got a broken SASLUsername: %s' % self.saslauth)
+          self.log.info('ENVFROM - ID %s Got a broken SASLUsername: %s' % (self.id, self.saslauth))
           
           # TODO: Try to fix the broken sasl accounts
           self.saslauth_domain = '@broken_sasl.tld'
@@ -111,6 +114,7 @@ class ThemisMilter(Milter.Base):
           self.saslauth_domain = '@' + self.saslauth.split('@')[1]
       # ('From Name', 'user@domain.tld')
       _, self.mailfrom = parseaddr(mailfrom)
+      self.mailfrom = self.mailfrom.lower()
 
       if not self.mailfrom:
         # Blank mailfrom
@@ -119,7 +123,7 @@ class ThemisMilter(Milter.Base):
         self.mailfrom = self.mailfrom + '@mailfrom.tld'
       self.mailfrom_domain = '@' + self.mailfrom.split('@')[1]
     except Exception, e:
-      self.log.error('ENVRCPT - BYPASS - Error processing envfrom')
+      self.log.error('ENVRCPT - BYPASS - %s Error processing envfrom' % self.id)
       self.log.exception(e)
       return Milter.ACCEPT
 
@@ -134,7 +138,7 @@ class ThemisMilter(Milter.Base):
       _, rcpt = parseaddr(rcptinfo[0])
       self.recipients.append(rcpt)
     except Exception, e:
-      self.log.error('ENVRCPT - BYPASS - Error processing recipients')
+      self.log.error('ENVRCPT - BYPASS - %s Error processing recipients' % self.id)
       self.log.exception(e)
       return Milter.ACCEPT
 
@@ -148,20 +152,21 @@ class ThemisMilter(Milter.Base):
       if name == 'Subject':
         self.subject = hval or ':::blank_subject:::'
     except Exception, e:
-      self.log.warning('HEADER - Error processing headers')
+      self.log.warning('HEADER - %s Error processing headers' % self.id)
       self.log.exception(e)
     return Milter.CONTINUE
 
   @Milter.noreply
   def eoh(self):
     self.queue_id = self.getsymval('{i}')
+    self.queue_id = ':'.join((self.queue_id, str(self.id)))
     self.log.debug('ENVFROM - %s - Mail from: %s SASLUsername: %s' % (self.queue_id, self.mailfrom, self.saslauth or 'NULL'))
 
     try:
       for hdr, hdr_value in self.milter_headers.items():
         self.log.debug('HEADER - %s - %s | %s' % (self.queue_id, hdr, hdr_value))
     except Exception, e:
-      self.log.warning('EOH - Could not debug headers. %s' % e)
+      self.log.warning('EOH - %s Could not debug headers. %s' % (self.queue_id, e))
       self.log.exception(e)
 
     rcptlog = ', '.join(self.recipients)
@@ -175,8 +180,7 @@ class ThemisMilter(Milter.Base):
     return Milter.CONTINUE
 
   def eom(self):
-    # TODO: add custom header - http://stackoverflow.com/questions/17558552/how-do-i-add-custom-field-to-python-log-format-string
-    eom_log_header = 'EOM - %s - ' % self.queue_id 
+    eom_log_header = 'EOM - %s - %s - ' % (self.mta_hostname, self.queue_id)
     try:   
       if not self.policies:
         self.log.warning(eom_log_header + 'BYPASS - Could not find any policies')
@@ -184,13 +188,12 @@ class ThemisMilter(Milter.Base):
 
       for pdata in self.policies:
         self.namespace = self.gconf.global_namespace
-
         if pdata.spf:
           try:
             spfresult, spfcode, spftext = spf.check(i=self.from_ipaddress, s=self.mailfrom, h=self.heloname)
             self.addheader('Received-SPF', spfresult)
             process_action = False
-            if self.spfStrictRejectFeature:
+            if self.gconf.spfStrictRejectFeature:
               if spfresult in ['softfail', 'fail', 'neutral', '', 'none']:
                 process_action = True
             else:
@@ -213,20 +216,20 @@ class ThemisMilter(Milter.Base):
               rgxp = pdata.actionheaders[hdr_key].pop(0)
               
               if re.match(r'%s' % rgxp, hdr_value):
-                self.log.debug(eom_log_header + 'MATCH, regexp %s value %s' % (rgxp, hdr_value))
+                self.log.info(eom_log_header + 'MATCH, regexp %s value %s' % (rgxp, hdr_value))
                 for actionheader in pdata.actionheaders[hdr_key]:
                   new_hdr, new_hdr_value = actionheader
-                  self.log.debug(eom_log_header + 'Adding header %s with value %s' % (new_hdr, new_hdr_value))
+                  self.log.info(eom_log_header + 'Adding header %s with value %s' % (new_hdr, new_hdr_value))
                   self.addheader(new_hdr, new_hdr_value)
               else:
-                self.log.debug(eom_log_header + 'NOT MATCH, regexp %s value %s' % (rgxp, hdr_value))
+                self.log.info(eom_log_header + 'NOT MATCH, regexp %s value %s' % (rgxp, hdr_value))
             except Exception, e:
               self.log.error(eom_log_header + 'Error processing action headers: %s' % e)
               self.log.exception(e)
               break
           
           if pdata.onlyheaders:
-            self.log.debug(eom_log_header + 'BYPASS - Accepting connection, policy validate only headers')
+            self.log.info(eom_log_header + 'BYPASS - Accepting connection, policy validate only headers')
             return Milter.ACCEPT
 
         jailby_namespace = pdata.jailby
@@ -240,7 +243,7 @@ class ThemisMilter(Milter.Base):
             
             self.gconf.ai_namespace = self.namespace
             jailby_namespace = ':'.join((pdata.pool_name, jailby_namespace))
-            self.log.debug(eom_log_header + 'Pool policy Name: %s namespace: %s jailby_namespace: %s' % (pdata.pool_name, self.namespace, jailby_namespace) )
+            self.log.info(eom_log_header + 'Pool policy Name: %s namespace: %s jailby_namespace: %s' % (pdata.pool_name, self.namespace, jailby_namespace) )
 
         self.log.info(eom_log_header + 'Executing policy: %s Pool Policy: %s' % (pdata.policy_name, pdata.pool_policy))
 
@@ -285,7 +288,8 @@ class ThemisMilter(Milter.Base):
           for rcpt in self.recipients:
             rcpt_domain = '@' + rcpt.split('@')[1]
             if self.policy.hasmember(pdata.destination, [rcpt_domain], pdata.inverted_destination):
-              self.log.info(eom_log_header + 'DEST_MATCH - Recipient: %s Policy: %s' % (rcpt_domain, pdata.policy_name))
+              self.log.debug(eom_log_header + 'DEST_MATCH - Recipient: %s Policy: %s Inverted: %s' % (rcpt_domain, 
+                pdata.policy_name, pdata.inverted_destination))
               # Bypass complex, only bypass if source and destination match
               if pdata.type == 'bypass+':
                 recipient_bypass_match = True
@@ -304,7 +308,7 @@ class ThemisMilter(Milter.Base):
 
         if not is_source_match:
           # This is only necessary to validate if an ipaddress belongs to a CIDR
-          for group_src_member in self.policy.getgroup(pdata.source):
+          for group_src_member in self.policy.getgroupips(pdata.source):
             self.log.debug(eom_log_header + 'Looping through groups. group: %s member(s): %s' % (pdata.source, group_src_member))
             try:
               if IPNetwork is type(isvalidtype(group_src_member)):
@@ -315,7 +319,7 @@ class ThemisMilter(Milter.Base):
 
         if is_source_match:
           local_milter_from_object = self.milter_from_object
-          self.log.info(eom_log_header + 'SOURCE_MATCH - group_source_name: %s milter_from_object: %s from_ipaddress: %s mailfrom_domain: %s mailfrom: %s invert: %s' 
+          self.log.debug(eom_log_header + 'SOURCE_MATCH - group_source_name: %s milter_from_object: %s from_ipaddress: %s mailfrom_domain: %s mailfrom: %s invert: %s' 
             % (pdata.source, local_milter_from_object, self.from_ipaddress, self.mailfrom_domain, self.mailfrom, pdata.inverted_source))
 
           # Bypass by the source (simple bypass) or by recipient (complex)
@@ -323,11 +327,11 @@ class ThemisMilter(Milter.Base):
             self.log.info(eom_log_header + 'BYPASS - Source, Destination or both matched. Policy: %s' % pdata.policy_name)
             return Milter.ACCEPT
         else:
-          self.log.info(eom_log_header + 'SOURCE_NOT_MATCH - milter_from_object: %s group_src_member: %s invert_source: %s jailby: %s'
-          % (self.milter_from_object, group_src_member, pdata.inverted_source, pdata.jailby))  
+          self.log.debug(eom_log_header + 'SOURCE_NOT_MATCH - milter_from_object: %s source_group: %s invert_source: %s jailby: %s'
+          % (self.milter_from_object, pdata.source, pdata.inverted_source, pdata.jailby))  
 
         if is_dest_match and is_source_match:
-          self.log.info(eom_log_header + 'SOURCE_AND_DEST_MATCH')
+          self.log.debug(eom_log_header + 'SOURCE_AND_DEST_MATCH')
 
           metadata_namespace = ':'.join((self.namespace, 'metadata', local_milter_from_object))
           metadata = self.redis.hgetall(metadata_namespace) or ThemisMetaData.METADATA_DEFAULT_VALUES
@@ -366,10 +370,15 @@ class ThemisMilter(Milter.Base):
           rate = RateLimiter(self.redis, jailby_namespace, conditions)
           free, wait = rate.acquire(local_milter_from_object, block_size=rcpt_count, block=False)
 
-          self.log.info(eom_log_header + 'Rate limiting object: %s. Namespace: %s Block Size: %s' 
-            % (local_milter_from_object, jailby_namespace, rcpt_count))
-
-          if not free:
+          full_log = "ISFREE:%s mobj:%s plcy:%s ispool:%s prio:%s nspace:%s rcptsize:%s jact:%s cond:%s \
+f-ip:%s stphr:%s psrc:%s pdest:%s mfrom:%s mfromdom:%s invsrc:%s invdest:%s" % (
+            free, local_milter_from_object, pdata.policy_name, pdata.pool_policy, pdata.priority, 
+            jailby_namespace, rcpt_count, pdata.jailaction, conditions, self.from_ipaddress, pdata.stophere,
+            pdata.source, pdata.destination, self.mailfrom, self.mailfrom_domain, pdata.inverted_source,
+            pdata.inverted_destination )   
+          if free:
+            self.log.info(eom_log_header + 'RATING->> ' + full_log)
+          else:
             if self.gconf.global_custom_block:
               # Custom blocking time. More than one condition will use only custom_block
               wait = int(rate.is_manual_block(local_milter_from_object))
@@ -377,7 +386,8 @@ class ThemisMilter(Milter.Base):
                 wait = rate.block(local_milter_from_object, minutes=self.gconf.global_custom_block)
 
             self.set_block_stats(metadata_namespace, pdata.blockprobation)
-            self.log.info(eom_log_header + 'BLOCK:%s - %s seconds left.' % (local_milter_from_object, wait))
+            self.log.warning(eom_log_header + 'RATING->> ' + full_log + ' wait:%s' % wait)
+            #self.log.debug(eom_log_header + 'LIMIT REACHED:%s - %s seconds left.' % (local_milter_from_object, wait))
             # Proccess milter action: reject, quarantine, addheader...
             return self.milter_action(pdata, wait, eom_log_header)
 
@@ -455,7 +465,7 @@ class ThemisMilter(Milter.Base):
           self.log.info(eom_log_header + 'SOURCE_AND_DEST_NOTMATCH')
         if pdata.stophere and is_dest_match and is_source_match:
           # Stop processing additional policies
-          self.log.info(eom_log_header + 'STOPHERE - Stopping additional policies, stopped on: %s' % pdata.policy_name)
+          self.log.debug(eom_log_header + 'STOPHERE - Stopping additional policies, stopped on: %s' % pdata.policy_name)
           break
 
     except Exception, e:
@@ -474,11 +484,13 @@ class ThemisMilter(Milter.Base):
   def milter_action(self, pdata, wait=0, log_header=''):
     if pdata.jailaction == 'block':
       self.setreply('550', '5.7.1', pdata.replydata % wait)
+      self.log.warning(log_header + 'REJECT blocked for %s second(s)' % wait)
       return Milter.REJECT  
     elif pdata.jailaction == 'hold':
+      self.log.warning(log_header + 'HOLD holding for %s second(s)' % wait)
       self.quarantine('Themis policy milter')
     elif pdata.jailaction == 'monitor':
-      self.log.info(log_header + 'BYPASS - MONITORING')
+      self.log.warning(log_header + 'BYPASS for %s second(s)' % wait)
     return Milter.ACCEPT
 
   def set_block_stats(self, metadata_namespace, block_probation):
@@ -492,14 +504,7 @@ class ThemisMilter(Milter.Base):
       return self.redis.hset(metadata_namespace, 'block_count', 1)
 
   def match(self, group_src_member, invert=False):
-    # It's a domain
-    if re.match(r'@[\w\.]+$', group_src_member):
-      result = group_src_member == self.mailfrom_domain
-    # It's an account
-    elif re.match(r'[\w\.]+@[\w\.]+$', group_src_member):
-      result = group_src_member == self.mailfrom
-    else:
-      result = IPAddress(self.from_ipaddress) in IPNetwork(group_src_member)
+    result = IPAddress(self.from_ipaddress) in IPNetwork(group_src_member)
 
     if invert:
       return not result
