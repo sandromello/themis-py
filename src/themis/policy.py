@@ -3,7 +3,6 @@ import re, yaml
 from themis.utils import is_valid_redis_key, BaseData, Features, ThemisMetaData
 from themis.static import POLICY_CUSTOM_CALLBACK, FEATURES_CUSTOM_CALLBACK, \
 METADATA_CUSTOM_CALLBACK, DEFAULT_FEATURES_VALUES, RESERVERD_KEYWORDS
-from copy import deepcopy
 
 class PolicyError(Exception): pass
 
@@ -12,7 +11,7 @@ class Policy(Groups):
   JAILBY_VALUES = [ 'SASLUsername', 'SenderIP', 'Sender', 'Sender+', 'SenderDomain', 'SenderDomain+' ]
   JAILACTION_VALUES = ['block', 'hold', 'monitor']
   # TODO: Add params policy_name and policy_namespace
-  POLICY_PARAMS = ['Source', 'Destination', 'Enable', 'Type', 'Priority', 'JailBy', 'JailSpec', 'JailAction', 'ReplyData', 'OnlyHeaders', 
+  POLICY_PARAMS = ['Source', 'Destination', 'Enable', 'Type', 'Priority', 'JailBy', 'JailSpec', 'JailAction', 'ReplyData', 'OnlyHeaders',
   'CountRCPT', 'StopHere', 'RequestsMon', 'SubjectProbation', 'CountSentProbation', 'IpProbation', 'BlockProbation', 'ActionHeaders', 'SPF']
 
   def __init__(self, redis):
@@ -53,7 +52,16 @@ class Policy(Groups):
     # VALIDATE NEW DATA
     pdata.do_init()
     pdata.validate_policy_args(self)
-    self.redis.hmset(pdata.policy_namespace, pdata.as_dict, POLICY_CUSTOM_CALLBACK)
+    
+    if pdata.pool_policy:
+      list_policy_name = ':'.join(('list', 'policies', pdata.pool_name))
+    else:
+      list_policy_name = ':'.join(('list', 'policies'))
+
+    with self.redis.pipeline() as pipe:
+      pipe.hmset(pdata.policy_namespace, pdata.as_dict, POLICY_CUSTOM_CALLBACK)
+      pipe.zadd(list_policy_name, pdata.priority, pdata.policy_namespace)
+      pipe.execute()
 
   # TODO: Fix
   def get_requests(self, target, messagesBySecStoreDays, sleep_time=None):
@@ -275,8 +283,11 @@ class Policy(Groups):
     """
     policies = {}
     for policy_name in self.scan('policy:*'):
-      pdata = PolicyData(**self.redis.hgetall(policy_name, POLICY_CUSTOM_CALLBACK))
-      policies[pdata.policy_name] = pdata
+      # Extract word 'policy' from policy_name
+      policy_name = ':'.join(policy_name.split(':')[1:])
+      policies[policy_name] = self.getpolicy(policy_name)
+      #pdata = PolicyData(**self.redis.hgetall(policy_name, POLICY_CUSTOM_CALLBACK))
+      #policies[pdata.policy_name] = pdata
     if not policies:
       raise ValueError('Could not find any policy, using base search "policy:*"')
     return policies
@@ -297,11 +308,11 @@ class Policy(Groups):
     if not del_result:
       raise ValueError('Could not find policy by the name: ' + policy_name)
 
-  def get_all_data_policies(self, mta_hostname=None):
+  def get_all_data_policies(self, mta_hostname=None, fallback=False):
     """ Get all enabled policies
     Returns a list of PolicyData objects
     """
-    search_pattern = 'list:policies'
+    search = ['list:policies']
     if mta_hostname:
       # ['pool:pool_name01', 'pool:pool_name02', ...]
       pools = list(self.redis.smembers('list:pools'))
@@ -316,20 +327,27 @@ class Policy(Groups):
       if pool:
         # Expect pool:pool_name from 'pool'
         pool = pool[0].split(':')[1]
-        search_pattern = 'list:policies:%s' % pool
+        search.insert(0, 'list:policies:%s' % pool)
+        if not fallback:
+          search.remove('list:policies')
 
     policies = []
     try:
-      for policy_name in self.redis.zrange(search_pattern, 0, -1):
-        #policy_data = self.redis.hgetall(policy_name)
-        pdata = PolicyData(**self.redis.hgetall(policy_name, POLICY_CUSTOM_CALLBACK))
-        if not pdata.enable:
-          continue
+      for search_pattern in search:
+        for policy_name in self.redis.zrange(search_pattern, 0, -1):
+          #policy_data = self.redis.hgetall(policy_name)
+          pdata = PolicyData(**self.redis.hgetall(policy_name, POLICY_CUSTOM_CALLBACK))
+          if not pdata.enable:
+            continue
 
-        policies.append(pdata)
-        # validate if group exists
-        self.getgroup(pdata.source)
-        self.getgroup(pdata.destination)
+          pdata.priority = self.redis.zscore(search_pattern, pdata.policy_namespace)
+          if pdata.priority is None:
+            raise ValueError('Could not extract priority from policy: %s Search pattern: %s' % (pdata.policy_namespace, search_pattern))
+
+          policies.append(pdata)
+          # validate if group exists
+          self.getgroup(pdata.source)
+          self.getgroup(pdata.destination)
     except Exception, e:
       raise PolicyError('Error parsing policies, check database consistency: %s' % e)
 
@@ -342,6 +360,13 @@ class Policy(Groups):
       raise ValueError('Cant find any policy for name: %s' % policy_name)
     try:
       pdata = PolicyData(**data)
+      list_policy_name = 'list:policies'
+      if pdata.pool_policy:
+        list_policy_name = ':'.join((list_policy_name, pdata.pool_name))
+      pdata.priority = self.redis.zscore(list_policy_name, pdata.policy_namespace)
+      if pdata.priority is None:
+        raise ValueError('Could not extract priority from policy: %s. \
+          List Policies Namespace: %s' % (list_policy_name, pdata.policy_namespace))
     except Exception, e:
       raise PolicyError('Inconsistency policy data, check stored data. %s' % e)
     return pdata
@@ -407,7 +432,7 @@ class PolicyData(BaseData):
   def _check_action_headers(self):
     if self.actionheaders:
       # Expected: {'X-HDR01' : ['REGEX', ('X-NEW-HDR', 'X-VAL'), ('X-NEW-HDR', 'X-VAL'), ...], 'X-HDR02' : [...]}
-      actionheaders = deepcopy(self.actionheaders)
+      actionheaders = dict(self.actionheaders)
       try:
         for hdr, hdrlist in actionheaders.items():
           # regexp value
