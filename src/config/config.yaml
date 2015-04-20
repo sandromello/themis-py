@@ -19,6 +19,7 @@ featuresByServerPool : false
 messagesBySecFeature: true
 messagesBySecStoreDays: 1
 feederFeaturesEnabled: false
+fallbackToNonPoolPolicies: false
 
 learnFeature : false
 learnPredictSafeValue : 30.0
@@ -49,7 +50,7 @@ subjectReputationFeature : false
 subjectReputationHitValue : 10
 subjectReputationDecreaseValue : 0.10
 subjectReputationIncreaseMinutes : 0
-# [ [Minutes, requests], [...], ...]
+# [ [requests, seconds], [...], ...]
 global_conditions : [ [720, 500] ]
 global_custom_block : 0
 ---
