@@ -26,5 +26,5 @@ __all__ = [
     'POLICY_CUSTOM_CALLBACK', 'DEFAULT_POLICY_PARAMS'
 ]
 
-__version__ = '0.1'
+__version__ = '0.1.2'
 VERSION = tuple(map(int, __version__.split('.')))
