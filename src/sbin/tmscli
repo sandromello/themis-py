@@ -4,6 +4,7 @@ import json, yaml
 from traceback import format_exc
 from os.path import expanduser
 from themis import *
+from themis.group import GroupError
 
 # TODO: List available options for policy
 # TODO: Create automatic pool on policy creation, should delete when a pool policy is deleted
@@ -123,6 +124,18 @@ class Prov(Policy):
     self.data = None
     self.prettify = True
 
+  def _convert_jailspec_to_tuple(self, dict_data):
+    if 'JailSpec' in dict_data:
+      try:
+        jailspec = []
+        for spec in dict_data['JailSpec'].split(';'):
+          if not spec:
+            continue
+          jailspec.append(tuple(spec.split(':')))
+          dict_data['JailSpec'] = jailspec
+      except Exception, e:
+        raise ValueError('JailSpec in wrong format: %s' %e)
+
   def add_policy(self, dict_data):
     # Configure default values
     if not len(REQUIRED_POLICY_PARAMS) == len(set(REQUIRED_POLICY_PARAMS) & set(dict_data)):
@@ -131,24 +144,14 @@ class Prov(Policy):
       if default_key not in dict_data:
         dict_data[default_key] = value
 
-    jailspec = []  
-    try:
-      for spec in dict_data['JailSpec'].split(';'):
-        if not spec:
-          continue
-        jailspec.append(tuple(spec.split(':')))
-      dict_data['JailSpec'] = jailspec
-    except Exception, e:
-      raise ValueError('JailSpec in wrong format: %s' %e)
-
-    dict_data['JailSpec'] = jailspec
-
+    self._convert_jailspec_to_tuple(dict_data) 
     self._convert_strings_to_bool(dict_data)
     self.setpolicy(PolicyData(**dict_data))
     return 'SUCCESS'
 
   def modify_policy(self, dict_data):
     self._convert_strings_to_bool(dict_data)
+    self._convert_jailspec_to_tuple(dict_data)
     self.modifypolicy(dict_data)
     return 'SUCCESS'
 
@@ -176,6 +179,7 @@ class Prov(Policy):
     return 'SUCCESS'
 
   def modify_group(self, group_name, group_members, add=True):
+    group_members = group_members[0].split()
     if add:
       self.editgroup(group_name, group_members)
     else:
@@ -199,7 +203,8 @@ class Prov(Policy):
     else:
       groups = {}
       for group_name in params:
-        groups[group_name] = self.getgroup(group_name)
+        # Merge two list of a tuple
+        groups[group_name] = [i for sub in self.getgroup(group_name) for i in sub]
     self.data = groups
     return self.json
 
