@@ -17,9 +17,13 @@ class Groups(object):
     self.redis = redis
     # Config DB => 1
     self.group_namespace = 'group'
+    self.groupip_namespace = 'groupip'
 
   def namespace(self, group_name):
     return ':'.join((self.group_namespace, group_name))
+
+  def ipnamespace(self, group_name):
+    return ':'.join((self.groupip_namespace, group_name))
 
   def get_all_group_members(self):
     """
@@ -29,7 +33,8 @@ class Groups(object):
     groups = {}
     for group in self.get_all_groups():
       group_name = group.split(':')[1]
-      groups[group_name] = list(self.redis.smembers(group))
+      groupip = self.ipnamespace(group_name)
+      groups[group_name] = list(self.redis.smembers(groupip)) + list(self.redis.smembers(group))
     if not groups:
       raise ValueError('There is any group stored')
     return groups
@@ -67,15 +72,21 @@ class Groups(object):
     if 'any' in members:
       raise ValueError('Wrong member identified, reserverd word: "any"')
     
+    gmembers, ipmembers = [], []
     for member in members:
       data = isvalidtype(member)
       if type(data) is IPNetwork:
-        members.remove(member)
-        members.append(str(data))
+        ipmembers.append(str(data))
+      else:
+        gmembers.append(member)
 
-    key = ':'.join((self.group_namespace, group_name))
+    key = self.namespace(group_name)
+    ipkey = self.ipnamespace(group_name)
     with self.redis.pipeline() as pipe:
-      pipe.sadd(key, *members)
+      if gmembers:
+        pipe.sadd(key, *gmembers)
+      if ipmembers:
+        pipe.sadd(ipkey, *ipmembers)
       pipe.sadd(':'.join(('list', 'groups')), key)
       pipe.execute()
 
@@ -87,23 +98,31 @@ class Groups(object):
     """
     is_valid_redis_key(group_name)
     group_name = group_name.lower()
-    if not self.getgroup(group_name):
+    group, groupips = self.getgroup(group_name)
+    if not group and not groupips:
       raise GroupError('Group "%s" does not exists' % group_name)
     if type(members) is not list:
       raise TypeError('Expect a list. Found: %s' % type(members))
 
+    gmembers, ipmembers = [], []
     for member in members:
       data = isvalidtype(member)
       if type(data) is IPNetwork:
-        members.remove(member)
-        members.append(str(data))
+        ipmembers.append(str(data))
+      else:
+        gmembers.append(member)
 
     if 'any' in members:
       raise ValueError('Could not add "any" type members')
 
     key = self.namespace(group_name)
+    ipkey = self.ipnamespace(group_name)
+
     with self.redis.pipeline() as pipe:
-      pipe.sadd(key, *members)
+      if gmembers:
+        pipe.sadd(key, *gmembers)
+      if ipmembers:
+        pipe.sadd(ipkey, *ipmembers)
       pipe.sadd(':'.join(('list', 'groups')), key)
       pipe.execute()
 
@@ -115,14 +134,20 @@ class Groups(object):
     if group_name == 'any':
       return list('any')
     group = self.redis.smembers(self.namespace(group_name))
-    if not group:
+    groupip_members = self.redis.smembers(self.ipnamespace(group_name))
+
+    if not group and not groupip_members:
       raise ValueError('Could not find group by the name: ' + group_name)
-    return list(group)
+    return list(group), list(groupip_members)
+
+  def getgroupips(self, group_name):
+    return list(self.redis.smembers(self.ipnamespace(group_name)))
 
   def hasmember(self, group_name, members, invert=False):
     result = []
     for member in members:
       result.append(self.redis.sismember(self.namespace(group_name), member))
+      result.append(self.redis.sismember(self.ipnamespace(group_name), member))
     if invert:
       return not True in result
     return True in result
@@ -132,9 +157,10 @@ class Groups(object):
     group = self.namespace(group_name)
     with self.redis.pipeline() as pipe:
       pipe.delete(group)
+      pipe.delete(self.ipnamespace(group_name))
       pipe.srem('list:groups', group)
-      del_result, _ = pipe.execute()
-    if not del_result:
+      delgroup, delgroup_ip, _ = pipe.execute()
+    if not delgroup and not delgroup_ip
       raise GroupError('Group "%s" does not exists' % group_name)
 
   def delgroup_member(self, group_name, members):
@@ -142,7 +168,8 @@ class Groups(object):
     if type(members) is not list:
       raise TypeError('Expect a list. Found: %s' % type(members))
 
-    replaced_members = self.getgroup(group_name)
+    replaced_members, ip_members = self.getgroup(group_name)
+    replaced_members += ip_members
     [replaced_members.remove(del_member) for del_member in members if del_member in replaced_members]
     if not replaced_members:
       raise GroupError('There only one member left. Remove group instead.')
