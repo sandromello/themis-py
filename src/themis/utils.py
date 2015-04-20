@@ -2,7 +2,6 @@ import hashlib, os, re, time
 from netaddr import IPNetwork
 from datetime import datetime, timedelta
 from themis.static import FEATURES_CUSTOM_CALLBACK, METADATA_CUSTOM_CALLBACK
-from copy import deepcopy
 
 class BaseData(object):
   IGNORE_POLICY_KEYS = ['inverted_source', 'inverted_destination', 'is_source_any', 'is_destination_any', 
@@ -13,7 +12,7 @@ class BaseData(object):
 
   @property
   def as_dict(self):
-    local_dict = deepcopy(self.__dict__)
+    local_dict = dict(self.__dict__)
     [local_dict.pop(key, None) for key in self.IGNORE_FEATURES_KEYS + self.IGNORE_POLICY_KEYS + self.IGNORE_METADATA_KEYS]
     return local_dict
 
