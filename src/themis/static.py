@@ -5,6 +5,7 @@ FEATURES_CUSTOM_CALLBACK = {
   'messagesBySecFeature' : bool,
   'messagesBySecStoreDays' : int,
   'feederFeaturesEnabled' : bool,
+  'fallbackToNonPoolPolicies' : bool,
   'featuresByServerPool' : bool,
   'learnFeature' : bool,
   'learnPredictSafeValue' : float,
@@ -71,6 +72,7 @@ DEFAULT_FEATURES_VALUES = {
   'messagesBySecFeature' : True,
   'messagesBySecStoreDays' : 1,
   'feederFeaturesEnabled' : False,
+  'fallbackToNonPoolPolicies' : False,
   'learnFeature' : False,
   'learnPredictSafeValue' : 30.0,
   'learnOnlyOnce' : True,
@@ -112,7 +114,7 @@ DEFAULT_POLICY_PARAMS = {
   'CountSentProbation' : 1,
   'ActionHeaders' : {},
   'OnlyHeaders' : False,
-  'SPF' : False,
+  'SPF' : False
 }
 
 RESERVERD_KEYWORDS = ['global', 'any', 'list', 'all', 'metadata', 'pool', 'policy', 'policies', 'group']
