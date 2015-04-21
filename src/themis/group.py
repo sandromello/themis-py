@@ -160,7 +160,7 @@ class Groups(object):
       pipe.delete(self.ipnamespace(group_name))
       pipe.srem('list:groups', group)
       delgroup, delgroup_ip, _ = pipe.execute()
-    if not delgroup and not delgroup_ip
+    if not delgroup and not delgroup_ip:
       raise GroupError('Group "%s" does not exists' % group_name)
 
   def delgroup_member(self, group_name, members):

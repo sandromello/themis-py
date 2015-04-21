@@ -6,7 +6,7 @@ from setuptools import setup
 packages = { 
 'themis_core_package' : {
       'name' : 'themis-core',
-      'version' : '0.1',
+      'version' : '0.1.2',
       'author' : 'Sandro Mello',
       'author_email' : 'sandromll@gmail.com',
       'url' : 'https://github.com/sandromello/themis-py',
@@ -21,7 +21,7 @@ packages = {
   },
 'themis_package' : {
     'name' : 'themis',
-    'version' : '0.1',
+    'version' : '0.1.2',
     'author' : 'Sandro Mello',
     'author_email' : 'sandromll@gmail.com',
     'url' : 'https://github.com/sandromello/themis-py',

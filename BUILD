@@ -27,9 +27,11 @@ vim setup.py
 python setup.py --command-packages=stdeb.command debianize
 rm -rf debian/source
 
-## Fix version
+## Fix version if needed
 vim debian/changelog
 debuild -S -rfakeroot -k47538A93
+# Confirm password two times on debuild
 
 ## Send to ppa
 dput ppa:sandro-mello/themis themis_0.1-1_source.changes
+dput ppa:sandro-mello/themis-core themis-core_0.1-1_source.changes
