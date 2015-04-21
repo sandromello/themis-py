@@ -1,3 +1,8 @@
+## 0.1.3 (2015-04-21)
+
+Bugfixes:
+  - Fix typo in groups
+
 ## 0.1.2 (2015-04-20)
 
 Features:
