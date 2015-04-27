@@ -15,7 +15,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 NAME=themismilter
 DESC="operations management daemon"
 DAEMON=themismilter
-DAEMON_BIN=/usr/sbin/themismilter.py
+DAEMON_BIN=$(which themismilter.py)
 DAEMON_PIDFILE=/var/run/$DAEMON.pid
 SCRIPTNAME=/etc/init.d/$NAME
 
