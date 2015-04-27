@@ -1,3 +1,8 @@
+## 0.1.4 (2015-04-27)
+
+Bugfixes:
+  - Fix init.d script
+
 ## 0.1.3 (2015-04-21)
 
 Bugfixes:
