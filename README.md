@@ -1,6 +1,6 @@
 # Themis
 
-Themis is a flexible milter, build on top of [pymilter](http://pythonhosted.org/pymilter) that strictly control your postfix environment. The main goal of this project is not only having control the users, but also to provide useful information about your mail environment. 
+Themis is a flexible milter, build on top of [pymilter](http://pythonhosted.org/pymilter) that strictly control your postfix environment. The main goal of this project is not only having control the users, but also to provide useful information about your mail environment.
 
 ## Full Documentation
 
@@ -10,7 +10,7 @@ See the [Wiki](https://github.com/sandromello/themis-py/wiki) for full documenta
 
 #### 1) Control all the flow of connections in policies
 
-With this kind of control, you could create flexible policies for each connection, separing logic of MTA behaviors. E.G.: Inbound, Outbound policies 
+With this kind of control, you could create flexible policies for each connection, separing logic of MTA behaviors. E.G.: Inbound, Outbound policies. 
 
 #### 2) Rate limiting of messages
 
