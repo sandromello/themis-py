@@ -1,20 +1,24 @@
 import unittest, sys, json, uuid
 from datetime import datetime
 from redisco import connection_setup
-from themis.models import Policy, Group, MetaData, ActionHeader, Pool
+from themis.components import Policy, Group, MetaData, ActionHeader, Pool
 from redis import StrictRedis
 
 class PolicyTestCase(unittest.TestCase):
   def test_policy_crud_operations(self):
     connection_setup(host='redishost')
+    pool = Pool(
+      namespace = 'buh'
+    )
+    #pool.save()
     group = Group(
-      namespace = 'velox',
-      groups = ['veloxmail.com.br', 'velox.com.br']
+      namespace = 'velox2',
+      items = ['veloxmail.com.br', 'velox.com.br']
     )
     #group.validate()
     #print group.is_valid()
 
-    #print group.errors
+    print group.errors
     group.save()
     result = Group.objects.filter(namespace='velox')
     print result
@@ -28,8 +32,6 @@ class PolicyTestCase(unittest.TestCase):
     )
     ah.save()
 
-    pool = Pool(namespace = 'main')
-    pool.save()
 
     p = Policy(
       namespace = 'velox',
