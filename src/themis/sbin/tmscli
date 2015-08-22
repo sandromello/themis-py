@@ -1,10 +1,11 @@
 #!/usr/bin/env python
-import getopt, sys, os
-import json, yaml
-from traceback import format_exc
-from os.path import expanduser
-from themis import 
-from themis.group import GroupError
+import sys, click
+from redisco import connection_setup
+from themis.components import (
+  Policy, MetaData, Policy, ActionHeader, Encoder, 
+  Group, Pool, Manager, POLICY_TYPES, JAILBY_VALUES,
+  JAILACTION_VALUES, RESERVED_NAMES, 
+)
 
 # TODO: List available options for policy
 # TODO: Create automatic pool on policy creation, should delete when a pool policy is deleted
@@ -13,4 +14,183 @@ from themis.group import GroupError
 # TODO: List of metadata keys/values and features keys/values
 # TODO: lock destination any with bypass
 
+# TODO: Check reserved_names into callback
+def validate_replydata(ctx, param, values):
+  ctx.obj['reply_data'] = 'Limit reached blabla'
+
+def validate_spec(ctx, param, values):
+  ctx.obj['jail_spec'] = '0:0'
+
+def validate_group(ctx, param, values):
+  pass
+
+@click.group()
+@click.option('--debug/--no-debug', default=False)
+@click.option('-a', '--add', is_flag=True, help='ADD operation')
+@click.option('-d', '--delete', is_flag=True, help='DELETE operations')
+@click.option('-g', '--get', is_flag=True, default=True, help='GET operations')
+@click.option('-m', '--modify', is_flag=True, help='MODIFY operations')
+@click.option('--json', is_flag=True, help='Turn into json instead of indenting')
+@click.option('--conn', envvar='THEMIS_REDIS', default='localhost:6379:00', 
+  help='Redis connection: redishost:port:db')
+@click.pass_context
+def tmscli(ctx, debug, add, delete, get, modify, json, conn):
+  """Command line utility for Themis
+  """
+  redisconn = conn.split(':')
+  if not len(redisconn) == 3:
+    click.echo('Wrong database options. Syntax accepted: redishost:port:db')
+    ctx.abort()
+  host, port, db = redisconn
+  connection_setup(host = host, port = port, db = db)
+
+  ctx.obj['manager'] = Manager()
+  ctx.obj['json'] = json
+
+  action = 'GET'
+  if add:
+    action = 'ADD'
+  elif delete:
+    action = 'DEL'
+  elif modify:
+    action = 'MOD'
+
+  ctx.obj[action] = True
+  ctx.obj['debug'] = debug
+
+@tmscli.command()
+@click.option('--objects')
+@click.pass_context
+def metadata(ctx):
+  click.echo('Metadata here %s' % (ctx.obj['debug'] and 'on' or 'off'))
+
+@tmscli.command()
+@click.option('-n', '--namespace', required=True, help='Target namespace')
+@click.option('--server', '-s', multiple=True, default=['any'])
+@click.option('--remove', is_flag=True, help='Delete a server from a pool. Use with --modify option')
+@click.pass_context
+def pool(ctx, namespace, server, remove):
+  manager = ctx.obj['manager']
+  if ctx.obj.get('ADD'):
+    servers = [str(srv) for srv in server]
+    manager.create_pool(namespace, servers)
+    click.echo('Pool "%s" saved sucessfully!' % namespace)
+  elif ctx.obj.get('GET'):
+    pool = Pool.objects.filter(namespace = namespace).first()
+    if not pool:
+      click.echo('Pool "%s" not found' % namespace)
+    else:
+      click.echo(pool.asjson(indent = True))
+  elif ctx.obj.get('MOD'):
+    if namespace in RESERVED_NAMES:
+      click.echo('Cannot modify reserverd names: %s' % ', '.join(RESERVED_NAMES))
+      ctx.abort()
+    manager.modify_pool(
+      pool_name = namespace, 
+      servers = list(set(server)), 
+      remove = remove
+    )
+    click.echo('Update sucessfully!')
+  elif ctx.obj.get('DEL'):
+    manager.delete_pool(namespace)
+    click.echo('Pool "%s" removed sucessfully' % namespace)
+
+  #click.echo('Pool here %s' % (ctx.obj['debug'] and 'on' or 'off'))
+
+# TODO: Must accept file as input
+@tmscli.command()
+@click.option('-n', '--namespace', required=True, help='Target namespace')
+@click.option('--objects', '-o', multiple=True)
+@click.pass_context
+def group(ctx, namespace, objects):
+  manager = ctx.obj['manager']
+  # unicode -> str
+  objects = [str(obj) for obj in objects]
+  if namespace in RESERVED_NAMES:
+    click.echo('Cannot modify reserverd names: %s' % ', '.join(RESERVED_NAMES))
+    ctx.abort()
+
+  if ctx.obj.get('ADD'):
+    manager.create_group(group_name = namespace, objects = objects)
+    click.echo('Group "%s" created sucessfully!' % namespace)
+  elif ctx.obj.get('MOD'):
+    manager.modify_group(group_name = namespace, objects = objects, remove = remove)
+    click.echo('Group "%s" modified with success!')
+  elif ctx.obj.get('DEL'):
+    manager.delete_group(group_name = namespace)
+    click.echo('Group "%s" removed sucessfully!')
+  else:
+    click.echo(manager.get_groups(group_name = namespace, indent=None))
+    #click.echo(json.dumps({'sa': 123}, indent=2))
+
+  #click.echo('Group here %s' % (ctx.obj['debug'] and 'on' or 'off'))
+
+# TODO: invert source/destination
+@tmscli.command()
+@click.option('--enable/--disable', default=True, is_flag=True)
+@click.option('--type', default='regular', type=click.Choice(POLICY_TYPES),
+  help='Type of the policy. Default: regular')
+@click.option('--prio', default=5.0, type=float,
+  help='Priority of the policy. Default: 5.0')
+@click.option('--source', default='any',
+  help='Source group. Default: any')
+@click.option('--destination', default='any', 
+  help='Destination group. Default: any')
+@click.option('--jail-by', default='Sender+', type=click.Choice(JAILBY_VALUES),
+  help='Default Sender+')
+@click.option('--jail-action', default='monitor', type=click.Choice(JAILACTION_VALUES))
+@click.option('--jail-spec', default='0:0', callback=validate_spec,
+  help='Request by sec (req:sec;...). Default 0:0 (disabled)')
+@click.option('--pool', help='Configure a specific pool of servers for a policy')
+@click.option('--reply-data', default='Limit reached. Blocking for %s second(s)',
+  help='The message to be sent when rejecting the connection', callback=validate_replydata)
+@click.option('--count-rcpt', is_flag=True, 
+  help='In case of multiple recipients will count each of then as the total of requests')
+@click.option('--stop', is_flag=True, help='Stop processing additional policies')
+@click.option('--spf', is_flag=True, help='Activate SPF validation.')
+@click.option('--only-headers', is_flag=True, help='Only process the ActionHeaders behavior')
+@click.option('--action-headers', '-h', multiple=True,
+  help='Tries to match a header in a message and then add a new header to the current message')
+@click.pass_context
+def policy(ctx, enable, type, prio, source, destination, jail_by, jail_action, 
+  jail_spec, pool, reply_data, count_rcpt, stop, spf, only_headers, action_headers):
+  """Manage policies
+  """
+  manager = ctx.obj['manager']
+
+  if ctx.obj.get('ADD'):
+    manager.create_policy(
+      policy_name = namespace,
+      enable = enable,
+      type = type,
+      priority = prio,
+      source = source,
+      destination = destination,
+      jailby = jail_by,
+      jailaction = jail_action,
+      jailspec = ctx.obj['jail_spec'],
+      pool=pool,
+      replydata = ctx.obj['reply_data'],
+      countrcpt = count_rcpt,
+      stophere = stop,
+      spf = spf,
+      onlyheaders = only_headers,
+      actionheaders=action_headers
+    )
+    
+    click.echo('Policy %s saved sucessfully!' % namespace)
+  elif ctx.obj.get('GET'):
+    policy = Policy.objects.filter(namespace = namespace).first()
+    chick.echo(policy.asjson(indent = True))
+  elif ctx.obj.get('MOD'):
+    click.echo('MODIFY')
+  elif ctx.obj.get('DEL'):
+    click.echo('DELETE')
+  #print disable, type, prio, source, destination, jail_by, jail_action, \
+  #jail_spec, reply_data, count_rcpt, stop, spf, only_headers, action_headers
+  #click.echo('Debug is %s' % (ctx.obj['debug'] and 'on' or 'off'))
+  #click.echo('Add: %s' % ctx.obj['action'])
+  #click.echo('jail_action: %s' % jail_action)
+
 if __name__ == '__main__':
+  tmscli(obj={})
