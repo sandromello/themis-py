@@ -1,3 +1,5 @@
 redis
 redisco
 click
+netaddr
+flask-classy

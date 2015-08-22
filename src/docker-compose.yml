@@ -1,15 +1,14 @@
-milter:  
-  build: .
+themisweb:  
+  build: ./themis
   volumes:
-    - ./themis/:/opt/themis
-  #ports:
-  #  - "8440:8440"
+    - ./:/opt/themisweb
+  ports:
+    - "8080:8080"
   links:
     - redishost
   environment:
     - NODE_ENV=dev
     - TZ=America/Sao_Paulo
-    - PYTHONPATH=/opt
 redishost:
   image: redis
   ports:
