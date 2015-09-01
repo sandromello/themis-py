@@ -9,6 +9,7 @@ themisweb:
   environment:
     - NODE_ENV=dev
     - TZ=America/Sao_Paulo
+    - PYTHONPATH=/opt/themisweb
 redishost:
   image: redis
   ports:

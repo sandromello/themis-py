@@ -8,6 +8,7 @@ from .manager import Manager
 
 from .exceptions import (
   ThemisException,
-  InconsistencyError,
-  ItemNotFound
+  ItemNotFound,
+  ApiRequestError,
+  InconsistencyError
 )
