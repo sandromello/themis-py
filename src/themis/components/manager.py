@@ -1,19 +1,18 @@
 import re
 from netaddr import IPNetwork
+from .exceptions import ItemNotFound, InconsistencyError
 from .redismodels import (
   Policy, MetaData, ActionHeader, Group, 
   Pool, JAILBY_VALUES, JAILACTION_VALUES,
   POLICY_TYPES, RESERVED_NAMES
 )
 
-from .exceptions import InconsistencyError
-
 class Manager(object):
   def __init__(self, redishost='localhost', redisport=6379, redisdb=0, redispass=None):
     pass
 
   def create_policy(self, policy_name, enable=True, type='regular', priority=5.0, source='any',
-    destination='any', jailby='Sender+', jail_action='monitor', jailspec='0:0', pool=None,
+    destination='any', jailby='Sender+', jailaction='monitor', jailspec='0:0', pool=None,
     replydata='', countrcpt=False, stophere=False, spf=False, onlyheaders=False, actionheaders=[]):
     """ Create a new policy into database
     """
@@ -141,7 +140,7 @@ class Manager(object):
     group.delete()
 
   def get_groups(self, group_name):
-    pass
+    return self._get_groups(group_name, indent=None)
 
 
   def _get_groups(self, group_name, indent=None):
